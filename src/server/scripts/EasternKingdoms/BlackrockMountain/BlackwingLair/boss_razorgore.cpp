@@ -166,12 +166,15 @@ struct go_orb_of_domination : public GameObjectAI
 
     bool OnGossipHello(Player* player) override
     {
-        if (instance->GetData(DATA_EGG_EVENT) != DONE)
+        if (instance->GetBossState(DATA_RAZORGORE_THE_UNTAMED) != DONE && instance->GetData(DATA_EGG_EVENT) != DONE)
         {
             if (Creature* razorgore = instance->GetCreature(DATA_RAZORGORE_THE_UNTAMED))
             {
-                razorgore->Attack(player, true);
-                player->CastSpell(razorgore, SPELL_MINDCONTROL);
+                if (razorgore->IsAlive())
+                {
+                    razorgore->Attack(player, true);
+                    player->CastSpell(razorgore, SPELL_MINDCONTROL);
+                }
             }
         }
         return true;
