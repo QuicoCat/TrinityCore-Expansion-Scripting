@@ -123,7 +123,7 @@ public:
 
         uint32 GetGameObjectEntry(ObjectGuid::LowType /*spawnId*/, uint32 entry) override
         {
-            if (entry == GO_BLACK_DRAGON_EGG && GetBossState(DATA_FIREMAW) == DONE)
+            if (entry == GO_BLACK_DRAGON_EGG && GetBossState(DATA_RAZORGORE_THE_UNTAMED) == DONE)
                 return 0;
             return entry;
         }
@@ -218,6 +218,14 @@ public:
             return true;
         }
 
+        uint32 GetData(uint32 type) const override
+        {
+            if (type == DATA_EGG_EVENT)
+                return _eggEvent;
+
+            return 0;
+        }
+
         void SetData(uint32 type, uint32 data) override
         {
             if (type == DATA_EGG_EVENT)
@@ -225,29 +233,39 @@ public:
                 switch (data)
                 {
                     case IN_PROGRESS:
+                        if (_eggEvent != NOT_STARTED)
+                            break;
                         _events.ScheduleEvent(EVENT_RAZOR_SPAWN, 45s);
                         _eggEvent = data;
                         _eggCount = 0;
                         break;
                     case NOT_STARTED:
                         _events.CancelEvent(EVENT_RAZOR_SPAWN);
+                        _events.CancelEvent(EVENT_RAZOR_PHASE_TWO);
                         _eggEvent = data;
                         _eggCount = 0;
                         break;
+                    case DONE:
+                        _events.CancelEvent(EVENT_RAZOR_SPAWN);
+                        _eggEvent = data;
+                        break;
                     case SPECIAL:
+                        if (_eggEvent == DONE)
+                            break;
+                        // Start the event before counting the first destroyed egg.
+                        if (_eggEvent == NOT_STARTED)
+                            SetData(DATA_EGG_EVENT, IN_PROGRESS);
                         if (++_eggCount == 15)
                         {
+                            SetData(DATA_EGG_EVENT, DONE);
                             if (Creature* razor = GetCreature(DATA_RAZORGORE_THE_UNTAMED))
                             {
-                                SetData(DATA_EGG_EVENT, DONE);
                                 razor->RemoveAurasDueToSpell(42013); // MindControl
                                 DoRemoveAurasDueToSpellOnPlayers(42013, true, true);
                             }
                             _events.ScheduleEvent(EVENT_RAZOR_PHASE_TWO, 1s);
                             _events.CancelEvent(EVENT_RAZOR_SPAWN);
                         }
-                        if (_eggEvent == NOT_STARTED)
-                            SetData(DATA_EGG_EVENT, IN_PROGRESS);
                         break;
                 }
             }

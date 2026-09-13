@@ -446,6 +446,7 @@ struct boss_nefarian : public BossAI
     void JustReachedHome() override
     {
         _despawn = true;
+        _despawnTimer = 30000;
     }
 
     void JustEngagedWith(Unit* /*who*/) override
@@ -511,16 +512,21 @@ struct boss_nefarian : public BossAI
 
     void UpdateAI(uint32 diff) override
     {
-        if (_despawn && _despawnTimer <= diff)
+        if (_despawn)
         {
-            instance->SetBossState(DATA_NEFARIAN, FAIL);
-            if (TempSummon* temp = me->ToTempSummon())
-                if (Unit* owner = temp->GetSummonerUnit())
-                    if (owner->IsAIEnabled())
-                        owner->GetAI()->DoAction(ACTION_BONE_CONSTRUCT_DESPAWN);
-        }
-        else
+            if (_despawnTimer <= diff)
+            {
+                _despawn = false;
+                if (TempSummon* temp = me->ToTempSummon())
+                    if (Unit* owner = temp->GetSummonerUnit())
+                        if (owner->IsAIEnabled())
+                            owner->GetAI()->DoAction(ACTION_BONE_CONSTRUCT_DESPAWN);
+                instance->SetBossState(DATA_NEFARIAN, FAIL);
+                return;
+            }
+
             _despawnTimer -= diff;
+        }
 
         if (!UpdateVictim())
             return;
