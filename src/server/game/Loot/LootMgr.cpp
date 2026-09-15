@@ -524,7 +524,7 @@ void LootTemplate::LootGroup::Process(Loot& loot, uint16 lootMode, Player const*
         {
             for (auto const& item : entries)
                 if ((item->lootmode & lootMode)
-                    && (!personalLooter || LootItem::AllowedForPlayer(personalLooter, *item, false)))
+                    && (!personalLooter || LootItem::AllowedForPlayer(personalLooter, *item, false, &loot)))
                     loot.AddItem(*item);
         };
         addAll(ExplicitlyChanced);
@@ -683,7 +683,7 @@ void LootTemplate::Process(Loot& loot, bool rate, uint16 lootMode, uint8 groupId
                 // Plain entries (not a reference, not grouped)
                 // Chance is already checked, just add
                 // Full creature loot includes equipment outside the player's loot specialization.
-                if (!personalLooter || LootItem::AllowedForPlayer(personalLooter, *item, !loot.IsFullCreatureLoot()))
+                if (!personalLooter || LootItem::AllowedForPlayer(personalLooter, *item, !loot.IsFullCreatureLoot(), &loot))
                     loot.AddItem(*item);
 
                 break;

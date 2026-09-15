@@ -208,7 +208,7 @@ struct TC_GAME_API LootItem
 
     // Basic checks for player/item compatibility - if false no chance to see the item in the loot - used only for loot generation
     bool AllowedForPlayer(Player const* player, Loot const* loot) const;
-    static bool AllowedForPlayer(Player const* player, LootStoreItem const& lootStoreItem, bool strictUsabilityCheck);
+    static bool AllowedForPlayer(Player const* player, LootStoreItem const& lootStoreItem, bool strictUsabilityCheck, Loot const* loot = nullptr);
     static bool ItemAllowedForPlayer(Player const* player, Loot const* loot, uint32 itemid, bool needs_quest, bool follow_loot_rules, bool strictUsabilityCheck,
         ConditionsReference const& conditions);
     static bool CurrencyAllowedForPlayer(Player const* player, uint32 currencyId, bool needs_quest, ConditionsReference const& conditions);

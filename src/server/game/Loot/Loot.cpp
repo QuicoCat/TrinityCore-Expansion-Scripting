@@ -89,12 +89,12 @@ bool LootItem::AllowedForPlayer(Player const* player, Loot const* loot) const
     return false;
 }
 
-bool LootItem::AllowedForPlayer(Player const* player, LootStoreItem const& lootStoreItem, bool strictUsabilityCheck)
+bool LootItem::AllowedForPlayer(Player const* player, LootStoreItem const& lootStoreItem, bool strictUsabilityCheck, Loot const* loot)
 {
     switch (lootStoreItem.type)
     {
         case LootStoreItem::Type::Item:
-            return ItemAllowedForPlayer(player, nullptr, lootStoreItem.itemid, lootStoreItem.needs_quest,
+            return ItemAllowedForPlayer(player, loot, lootStoreItem.itemid, lootStoreItem.needs_quest,
                 !lootStoreItem.needs_quest || ASSERT_NOTNULL(sObjectMgr->GetItemTemplate(lootStoreItem.itemid))->HasFlag(ITEM_FLAGS_CU_FOLLOW_LOOT_RULES),
                 strictUsabilityCheck, lootStoreItem.conditions);
         case LootStoreItem::Type::Currency:
@@ -110,12 +110,17 @@ bool LootItem::AllowedForPlayer(Player const* player, LootStoreItem const& lootS
 bool LootItem::ItemAllowedForPlayer(Player const* player, Loot const* loot, uint32 itemid, bool needs_quest, bool follow_loot_rules, bool strictUsabilityCheck,
     ConditionsReference const& conditions)
 {
-    // DB conditions check
-    if (!conditions.Meets(player))
-        return false;
-
     ItemTemplate const* pProto = sObjectMgr->GetItemTemplate(itemid);
     if (!pProto)
+        return false;
+
+    // Epic items in full creature loot are collectible regardless of item eligibility.
+    // Apply the same exception during generation and when exposing loot to a player.
+    if (loot && loot->IsFullCreatureLoot() && pProto->GetQuality() == ITEM_QUALITY_EPIC)
+        return true;
+
+    // DB conditions check
+    if (!conditions.Meets(player))
         return false;
 
     // not show loot for not own team
