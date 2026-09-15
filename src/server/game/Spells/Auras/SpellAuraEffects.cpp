@@ -2868,7 +2868,7 @@ void AuraEffect::HandleAuraAllowFlight(AuraApplication const* aurApp, uint8 mode
     if (!apply)
     {
         // do not remove unit flag if there are more than this auraEffect of that kind on unit on unit
-        if (target->HasAuraType(GetAuraType()) || target->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED) || target->HasAuraType(SPELL_AURA_ADV_FLYING))
+        if (target->HasAuraType(GetAuraType()) || target->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED))
             return;
     }
 
@@ -2989,18 +2989,9 @@ void AuraEffect::HandleModAdvFlying(AuraApplication const* aurApp, uint8 mode, b
         return;
 
     Unit* target = aurApp->GetTarget();
-    // Removing one advanced-flight aura must not disable another active source.
-    if (!apply && target->HasAuraType(SPELL_AURA_ADV_FLYING))
-        return;
-
     target->SetCanDoubleJump(apply || target->HasAura(SPELL_DH_DOUBLE_JUMP));
+    target->SetCanFly(apply);
     target->SetCanAdvFly(apply);
-
-    bool canFly = apply || target->HasAuraType(SPELL_AURA_FLY)
-        || target->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED);
-    if (target->SetCanFly(canFly))
-        if (!canFly && !target->IsGravityDisabled())
-            target->GetMotionMaster()->MoveFall();
 }
 
 void AuraEffect::HandleIgnoreMovementForces(AuraApplication const* aurApp, uint8 mode, bool apply) const
@@ -3421,7 +3412,7 @@ void AuraEffect::HandleAuraModIncreaseFlightSpeed(AuraApplication const* aurApp,
     if (GetAuraType() == SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED)
     {
         // do not remove unit flag if there are more than this auraEffect of that kind on unit on unit
-        if (mode & AURA_EFFECT_HANDLE_SEND_FOR_CLIENT_MASK && (apply || (!target->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED) && !target->HasAuraType(SPELL_AURA_FLY) && !target->HasAuraType(SPELL_AURA_ADV_FLYING))))
+        if (mode & AURA_EFFECT_HANDLE_SEND_FOR_CLIENT_MASK && (apply || (!target->HasAuraType(SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED) && !target->HasAuraType(SPELL_AURA_FLY))))
         {
             target->SetCanTransitionBetweenSwimAndFly(apply);
 
