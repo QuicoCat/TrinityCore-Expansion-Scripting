@@ -2476,7 +2476,9 @@ uint32 Item::GetDisplayId(Player const* owner) const
 
 ItemModifiedAppearanceEntry const* Item::GetItemModifiedAppearance() const
 {
-    return TransmogMgr::GetItemModifiedAppearance(GetEntry(), _bonusData.AppearanceModID);
+    // Artifact selection updates ItemAppearanceModID independently of bonus data.
+    uint32 appearanceModId = GetTemplate()->IsLegionArtifact() ? GetAppearanceModId() : _bonusData.AppearanceModID;
+    return TransmogMgr::GetItemModifiedAppearance(GetEntry(), appearanceModId);
 }
 
 uint32 Item::GetModifier(ItemModifier modifier) const

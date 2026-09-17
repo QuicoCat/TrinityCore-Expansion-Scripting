@@ -709,14 +709,14 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
     if (!itemModifiedAppearance)
         return false;
 
-    if (!sItemSearchNameStore.LookupEntry(itemModifiedAppearance->ItemID))
-        return false;
-
     ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(itemModifiedAppearance->ItemID);
     if (!itemTemplate)
         return false;
 
     bool isLegionArtifact = itemTemplate->IsLegionArtifact();
+    if (!isLegionArtifact && !sItemSearchNameStore.LookupEntry(itemModifiedAppearance->ItemID))
+        return false;
+
     if (!isLegionArtifact && (itemModifiedAppearance->TransmogSourceTypeEnum == 6 || itemModifiedAppearance->TransmogSourceTypeEnum == 9))
         return false;
 
