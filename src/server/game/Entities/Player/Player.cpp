@@ -11139,7 +11139,7 @@ InventoryResult Player::CanBankItem(uint8 bag, uint8 slot, ItemPosCountVec& dest
     return reagentBankOnly ? EQUIP_ERR_REAGENT_BANK_FULL : EQUIP_ERR_BANK_FULL;
 }
 
-InventoryResult Player::CanUseItem(Item* pItem, bool not_loading) const
+InventoryResult Player::CanUseItem(Item* pItem, bool not_loading, bool forToyCollection /*= false*/) const
 {
     if (pItem)
     {
@@ -11161,7 +11161,7 @@ InventoryResult Player::CanUseItem(Item* pItem, bool not_loading) const
             if (GetLevel() < pItem->GetRequiredLevel())
                 return EQUIP_ERR_CANT_EQUIP_LEVEL_I;
 
-            InventoryResult res = CanUseItem(pProto, true);
+            InventoryResult res = CanUseItem(pProto, true, forToyCollection);
             if (res != EQUIP_ERR_OK)
                 return res;
 
@@ -11176,7 +11176,7 @@ InventoryResult Player::CanUseItem(Item* pItem, bool not_loading) const
     return EQUIP_ERR_ITEM_NOT_FOUND;
 }
 
-InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredLevelCheck /*= false*/) const
+InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredLevelCheck /*= false*/, bool forToyCollection /*= false*/) const
 {
     // Used by group, function GroupLoot, to know if a prototype can be used by a player
 
@@ -11186,7 +11186,11 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
     if (proto->HasFlag(ITEM_FLAG2_INTERNAL_ITEM))
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
-    if (proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && GetTeam() != HORDE)
+    // Collection eligibility is separate from using a toy's spell.
+    bool const collectingHordeToyOnAlliance = forToyCollection && GetTeam() == ALLIANCE
+        && proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && sDB2Manager.IsToyItem(proto->GetId());
+
+    if (proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && GetTeam() != HORDE && !collectingHordeToyOnAlliance)
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
     if (proto->HasFlag(ITEM_FLAG2_FACTION_ALLIANCE) && GetTeam() != ALLIANCE)
@@ -11196,7 +11200,8 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
         && (proto->GetClass() == ITEM_CLASS_WEAPON || proto->GetClass() == ITEM_CLASS_ARMOR);
 
     // Class masks still apply to consumables, recipes and other non-equipment.
-    if ((!isEquipment && (proto->GetAllowableClass() & GetClassMask()) == 0) || !proto->GetAllowableRace().HasRace(GetRace()))
+    if ((!isEquipment && (proto->GetAllowableClass() & GetClassMask()) == 0)
+        || (!collectingHordeToyOnAlliance && !proto->GetAllowableRace().HasRace(GetRace())))
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
     // Ignore an explicit requirement for the item's own equipment proficiency,
