@@ -719,6 +719,10 @@ bool AddonChannelCommandHandler::ParseCommands(std::string_view str)
                 return false;
             humanReadable = (opcode == 'h');
             std::string_view cmd = str.substr(5);
+            // Addon GM requests target the authenticated sender. This allows
+            // commands such as "achievement add" to operate on the sender.
+            if (GetSession() && GetSession()->GetPlayer())
+                GetSession()->GetPlayer()->SetSelection(GetSession()->GetPlayer()->GetGUID());
             if (_ParseCommands(cmd)) // actual command starts at str[5]
             {
                 if (!hadAck)
