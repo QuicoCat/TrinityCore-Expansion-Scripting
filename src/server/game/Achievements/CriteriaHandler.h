@@ -304,8 +304,9 @@ protected:
 
     bool ConditionsSatisfied(Criteria const* criteria, Player* referencePlayer) const;
     bool RequirementsSatisfied(Criteria const* criteria, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, WorldObject const* ref, Player* referencePlayer) const;
+    virtual bool CanEarnHordeAchievementsAsAlliance() const { return false; }
     virtual bool RequiredAchievementSatisfied(uint32 /*achievementId*/) const { return false; }
-    bool ModifierTreeSatisfied(ModifierTreeNode const* parent, uint64 miscValue1, uint64 miscValue2, WorldObject const* ref, Player* referencePlayer) const;
+    bool ModifierTreeSatisfied(ModifierTreeNode const* parent, uint64 miscValue1, uint64 miscValue2, WorldObject const* ref, Player* referencePlayer, bool allowHordeFaction = false) const;
     bool ModifierSatisfied(ModifierTreeEntry const* modifier, uint64 miscValue1, uint64 miscValue2, WorldObject const* ref, Player* referencePlayer) const;
 
     virtual std::string GetOwnerInfo() const = 0;

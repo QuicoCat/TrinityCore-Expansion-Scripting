@@ -1157,7 +1157,8 @@ bool CriteriaHandler::IsCompletedCriteriaTree(CriteriaTree const* tree)
 
 bool CriteriaHandler::CanUpdateCriteriaTree(Criteria const* criteria, CriteriaTree const* tree, Player* referencePlayer) const
 {
-    if ((tree->Entry->GetFlags().HasFlag(CriteriaTreeFlags::HordeOnly) && referencePlayer->GetTeam() != HORDE) ||
+    if ((tree->Entry->GetFlags().HasFlag(CriteriaTreeFlags::HordeOnly) && referencePlayer->GetTeam() != HORDE
+            && !(tree->Achievement && CanEarnHordeAchievementsAsAlliance() && referencePlayer->GetTeam() == ALLIANCE)) ||
         (tree->Entry->GetFlags().HasFlag(CriteriaTreeFlags::AllianceOnly) && referencePlayer->GetTeam() != ALLIANCE))
     {
         TC_LOG_TRACE("criteria", "CriteriaHandler::CanUpdateCriteriaTree: (Id: {} Type {} CriteriaTree {}) Wrong faction",
@@ -1351,7 +1352,8 @@ bool CriteriaHandler::CanUpdateCriteria(Criteria const* criteria, CriteriaTreeLi
         return false;
     }
 
-    if (criteria->Modifier && !ModifierTreeSatisfied(criteria->Modifier, miscValue1, miscValue2, ref, referencePlayer))
+    if (criteria->Modifier && !ModifierTreeSatisfied(criteria->Modifier, miscValue1, miscValue2, ref, referencePlayer,
+        CanEarnHordeAchievementsAsAlliance() && referencePlayer->GetTeam() == ALLIANCE))
     {
         TC_LOG_TRACE("criteria", "CriteriaHandler::CanUpdateCriteria: (Id: {} Type {}) Requirements have not been satisfied", criteria->ID, CriteriaMgr::GetCriteriaTypeString(criteria->Entry->Type));
         return false;
@@ -1720,24 +1722,28 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
     return true;
 }
 
-bool CriteriaHandler::ModifierTreeSatisfied(ModifierTreeNode const* tree, uint64 miscValue1, uint64 miscValue2, WorldObject const* ref, Player* referencePlayer) const
+bool CriteriaHandler::ModifierTreeSatisfied(ModifierTreeNode const* tree, uint64 miscValue1, uint64 miscValue2, WorldObject const* ref, Player* referencePlayer, bool allowHordeFaction /*= false*/) const
 {
     switch (ModifierTreeOperator(tree->Entry->Operator))
     {
         case ModifierTreeOperator::SingleTrue:
+            // Only achievement progress may accept a positive Horde faction requirement.
+            // Standalone modifier queries and negative faction checks retain their normal semantics.
+            if (allowHordeFaction && ModifierTreeType(tree->Entry->Type) == ModifierTreeType::PlayerFaction && tree->Entry->Asset == 0)
+                return true;
             return tree->Entry->Type && ModifierSatisfied(tree->Entry, miscValue1, miscValue2, ref, referencePlayer);
         case ModifierTreeOperator::SingleFalse:
             return tree->Entry->Type && !ModifierSatisfied(tree->Entry, miscValue1, miscValue2, ref, referencePlayer);
         case ModifierTreeOperator::All:
             for (ModifierTreeNode const* node : tree->Children)
-                if (!ModifierTreeSatisfied(node, miscValue1, miscValue2, ref, referencePlayer))
+                if (!ModifierTreeSatisfied(node, miscValue1, miscValue2, ref, referencePlayer, allowHordeFaction))
                     return false;
             return true;
         case ModifierTreeOperator::Some:
         {
             int8 requiredAmount = std::max<int8>(tree->Entry->Amount, 1);
             for (ModifierTreeNode const* node : tree->Children)
-                if (ModifierTreeSatisfied(node, miscValue1, miscValue2, ref, referencePlayer))
+                if (ModifierTreeSatisfied(node, miscValue1, miscValue2, ref, referencePlayer, allowHordeFaction))
                     if (!--requiredAmount)
                         return true;
 

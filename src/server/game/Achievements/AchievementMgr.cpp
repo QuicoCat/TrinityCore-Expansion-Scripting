@@ -94,7 +94,8 @@ bool AchievementMgr::CanUpdateCriteriaTree(Criteria const* criteria, CriteriaTre
         return false;
     }
 
-    if ((achievement->Faction == ACHIEVEMENT_FACTION_HORDE    && referencePlayer->GetTeam() != HORDE) ||
+    if ((achievement->Faction == ACHIEVEMENT_FACTION_HORDE && referencePlayer->GetTeam() != HORDE
+            && !(CanEarnHordeAchievementsAsAlliance() && referencePlayer->GetTeam() == ALLIANCE)) ||
         (achievement->Faction == ACHIEVEMENT_FACTION_ALLIANCE && referencePlayer->GetTeam() != ALLIANCE))
     {
         TC_LOG_TRACE("criteria.achievement", "AchievementMgr::CanUpdateCriteriaTree: (Id: {} Type {} Achievement {}) Wrong faction",
@@ -465,7 +466,8 @@ void PlayerAchievementMgr::CompletedAchievement(AchievementEntry const* achievem
     if (_owner->IsGameMaster() || _owner->GetSession()->HasPermission(rbac::RBAC_PERM_CANNOT_EARN_ACHIEVEMENTS))
         return;
 
-    if ((achievement->Faction == ACHIEVEMENT_FACTION_HORDE    && referencePlayer->GetTeam() != HORDE) ||
+    if ((achievement->Faction == ACHIEVEMENT_FACTION_HORDE && referencePlayer->GetTeam() != HORDE
+            && !(CanEarnHordeAchievementsAsAlliance() && referencePlayer->GetTeam() == ALLIANCE)) ||
         (achievement->Faction == ACHIEVEMENT_FACTION_ALLIANCE && referencePlayer->GetTeam() != ALLIANCE))
         return;
 

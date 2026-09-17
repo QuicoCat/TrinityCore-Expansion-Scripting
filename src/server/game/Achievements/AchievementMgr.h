@@ -79,6 +79,7 @@ class TC_GAME_API PlayerAchievementMgr : public AchievementMgr
 public:
     explicit PlayerAchievementMgr(Player* owner);
 
+
     void Reset() override;
 
     static void DeleteFromDB(ObjectGuid const& guid);
@@ -94,6 +95,8 @@ public:
     bool ModifierTreeSatisfied(uint32 modifierTreeId) const;
 
 protected:
+    bool CanEarnHordeAchievementsAsAlliance() const override { return true; }
+
     void SendCriteriaUpdate(Criteria const* entry, CriteriaProgress const* progress, Seconds timeElapsed, bool timedCompleted) const override;
     void SendCriteriaProgressRemoved(uint32 criteriaId) override;
 
