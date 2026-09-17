@@ -11165,32 +11165,10 @@ InventoryResult Player::CanUseItem(Item* pItem, bool not_loading) const
             if (res != EQUIP_ERR_OK)
                 return res;
 
-            if (pItem->GetSkill() != 0)
-            {
-                bool allowEquip = false;
-                uint32 itemSkill = pItem->GetSkill();
-                // Armor that is binded to account can "morph" from plate to mail, etc. if skill is not learned yet.
-                if (pProto->GetQuality() == ITEM_QUALITY_HEIRLOOM && pProto->GetClass() == ITEM_CLASS_ARMOR && !HasSkill(itemSkill))
-                {
-                    /// @todo when you right-click already equipped item it throws EQUIP_ERR_PROFICIENCY_NEEDED.
-                    // In fact it's a visual bug, everything works properly... I need sniffs of operations with
-                    // binded to account items from off server.
-
-                    switch (GetClass())
-                    {
-                        case CLASS_HUNTER:
-                        case CLASS_SHAMAN:
-                            allowEquip = (itemSkill == SKILL_MAIL);
-                            break;
-                        case CLASS_PALADIN:
-                        case CLASS_WARRIOR:
-                            allowEquip = (itemSkill == SKILL_PLATE_MAIL);
-                            break;
-                    }
-                }
-                if (!allowEquip && GetSkillValue(itemSkill) == 0)
-                    return EQUIP_ERR_PROFICIENCY_NEEDED;
-            }
+            // Weapon and armor proficiency must not prevent cross-class equipment.
+            if (pItem->GetSkill() != 0 && pProto->GetClass() != ITEM_CLASS_WEAPON && pProto->GetClass() != ITEM_CLASS_ARMOR
+                && GetSkillValue(pItem->GetSkill()) == 0)
+                return EQUIP_ERR_PROFICIENCY_NEEDED;
 
             return EQUIP_ERR_OK;
         }
@@ -11214,10 +11192,16 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
     if (proto->HasFlag(ITEM_FLAG2_FACTION_ALLIANCE) && GetTeam() != ALLIANCE)
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
-    if ((proto->GetAllowableClass() & GetClassMask()) == 0 || !proto->GetAllowableRace().HasRace(GetRace()))
+    bool const isEquipment = proto->GetInventoryType() != INVTYPE_NON_EQUIP
+        && (proto->GetClass() == ITEM_CLASS_WEAPON || proto->GetClass() == ITEM_CLASS_ARMOR);
+
+    // Class masks still apply to consumables, recipes and other non-equipment.
+    if ((!isEquipment && (proto->GetAllowableClass() & GetClassMask()) == 0) || !proto->GetAllowableRace().HasRace(GetRace()))
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
-    if (proto->GetRequiredSkill() != 0)
+    // Ignore an explicit requirement for the item's own equipment proficiency,
+    // but retain profession requirements such as Engineering on goggles.
+    if (proto->GetRequiredSkill() != 0 && !(isEquipment && proto->GetRequiredSkill() == proto->GetSkill()))
     {
         if (GetSkillValue(proto->GetRequiredSkill()) == 0)
             return EQUIP_ERR_PROFICIENCY_NEEDED;
@@ -11252,9 +11236,11 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
     if (learnableCount && learnedCount == learnableCount)
         return EQUIP_ERR_NONE;
 
-    if (ArtifactEntry const* artifact = sArtifactStore.LookupEntry(proto->GetArtifactID()))
-        if (ChrSpecialization(artifact->ChrSpecializationID) != GetPrimarySpecialization())
-            return EQUIP_ERR_CANT_USE_ITEM;
+    // Artifact equipment can be worn by any class and specialization.
+    if (!isEquipment)
+        if (ArtifactEntry const* artifact = sArtifactStore.LookupEntry(proto->GetArtifactID()))
+            if (ChrSpecialization(artifact->ChrSpecializationID) != GetPrimarySpecialization())
+                return EQUIP_ERR_CANT_USE_ITEM;
 
     return EQUIP_ERR_OK;
 }
