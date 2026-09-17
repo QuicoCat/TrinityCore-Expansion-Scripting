@@ -2921,6 +2921,10 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
         return !IsPlayerMeetingCondition(player, condition);
 
     PlayerConditionEntry mountCondition = *condition;
+    
+    // Allow every character class to use class-restricted mounts.
+    mountCondition.ClassMask = 0;
+    
     if (!mountCondition.RaceMask.IsEmpty()
         && (mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty())
         mountCondition.RaceMask = {};
