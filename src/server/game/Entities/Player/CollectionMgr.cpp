@@ -614,6 +614,28 @@ void CollectionMgr::AddItemAppearance(Item* item)
         return;
 
     ItemModifiedAppearanceEntry const* itemModifiedAppearance = item->GetItemModifiedAppearance();
+
+    if (!itemModifiedAppearance && item->GetTemplate()->GetArtifactID())
+    {
+        for (ArtifactAppearanceEntry const* artifactAppearance : sArtifactAppearanceStore)
+        {
+            ArtifactAppearanceSetEntry const* appearanceSet =
+                sArtifactAppearanceSetStore.LookupEntry(
+                    artifactAppearance->ArtifactAppearanceSetID);
+
+            if (!appearanceSet ||
+                appearanceSet->ArtifactID != item->GetTemplate()->GetArtifactID())
+                continue;
+
+            itemModifiedAppearance = TransmogMgr::GetItemModifiedAppearance(
+                item->GetEntry(),
+                artifactAppearance->ItemAppearanceModifierID);
+
+            if (itemModifiedAppearance)
+                break;
+        }
+    }
+
     if (!CanAddAppearance(itemModifiedAppearance))
         return;
 
