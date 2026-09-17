@@ -630,7 +630,7 @@ void CollectionMgr::AddItemAppearanceOnDisposal(Item* item, bool bindForBuyback)
 {
     Player* owner = _owner->GetPlayer();
     if (!owner || !item || item->GetOwnerGUID() != owner->GetGUID()
-        || item->GetBonding() != BIND_ON_EQUIP || item->IsWrapped())
+        || (item->GetBonding() != BIND_ON_EQUIP && !item->GetTemplate()->IsLegionArtifact()) || item->IsWrapped())
         return;
 
     ItemModifiedAppearanceEntry const* appearance = item->GetItemModifiedAppearance();
@@ -709,9 +709,6 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
     if (!itemModifiedAppearance)
         return false;
 
-    if (itemModifiedAppearance->TransmogSourceTypeEnum == 6 || itemModifiedAppearance->TransmogSourceTypeEnum == 9)
-        return false;
-
     if (!sItemSearchNameStore.LookupEntry(itemModifiedAppearance->ItemID))
         return false;
 
@@ -719,13 +716,16 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
     if (!itemTemplate)
         return false;
 
-    // Legendary items may supply collected appearances even when their data
-    // disables them as a normal transmog source. Artifact collection is separate.
-    if (itemTemplate->GetQuality() == ITEM_QUALITY_ARTIFACT)
+    bool isLegionArtifact = itemTemplate->IsLegionArtifact();
+    if (!isLegionArtifact && (itemModifiedAppearance->TransmogSourceTypeEnum == 6 || itemModifiedAppearance->TransmogSourceTypeEnum == 9))
         return false;
 
+    if (itemTemplate->GetQuality() == ITEM_QUALITY_ARTIFACT && !isLegionArtifact)
+        return false;
+
+    // Allow owned Legion artifact appearances through normal collection handling.
     if (itemTemplate->HasFlag(ITEM_FLAG2_NO_SOURCE_FOR_ITEM_VISUAL)
-        && itemTemplate->GetQuality() != ITEM_QUALITY_LEGENDARY)
+        && itemTemplate->GetQuality() != ITEM_QUALITY_LEGENDARY && !isLegionArtifact)
         return false;
 
     switch (itemTemplate->GetClass())

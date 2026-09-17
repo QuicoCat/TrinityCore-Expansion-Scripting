@@ -900,6 +900,7 @@ struct TC_GAME_API ItemTemplate
     HolidayIds GetHolidayID() const { return HolidayIds(ExtendedData->RequiredHoliday); }
     float  GetDmgVariance() const { return ExtendedData->DmgVariance; }
     uint8 GetArtifactID() const { return ExtendedData->ArtifactID; }
+    bool IsLegionArtifact() const { return GetArtifactID() != 0 && GetQuality() == ITEM_QUALITY_ARTIFACT; }
     uint8 GetRequiredExpansion() const { return ExtendedData->ExpansionID; }
 
     uint32 MaxDurability;

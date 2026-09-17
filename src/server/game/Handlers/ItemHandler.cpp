@@ -336,7 +336,7 @@ void WorldSession::HandleDestroyItemOpcode(WorldPackets::Item::DestroyItem& dest
         return;
     }
 
-    if (item->GetTemplate()->HasFlag(ITEM_FLAG_NO_USER_DESTROY))
+    if (item->GetTemplate()->HasFlag(ITEM_FLAG_NO_USER_DESTROY) && !item->GetTemplate()->IsLegionArtifact())
     {
         _player->SendEquipError(EQUIP_ERR_DROP_BOUND_ITEM, nullptr, nullptr);
         return;

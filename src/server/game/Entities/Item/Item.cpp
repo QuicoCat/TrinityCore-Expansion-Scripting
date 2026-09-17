@@ -2232,6 +2232,10 @@ uint32 Item::GetSellPrice(Player const* owner, bool forVendor /*= false*/) const
 
 uint32 Item::GetSellPrice(ItemTemplate const* proto, uint32 quality, uint32 itemLevel)
 {
+    // Legion artifacts normally have no vendor value. Keep sale and buyback pricing consistent.
+    if (proto->IsLegionArtifact())
+        return std::max(proto->GetSellPrice(), 1u);
+
     if (proto->HasFlag(ITEM_FLAG2_OVERRIDE_GOLD_COST))
         return proto->GetSellPrice();
     else
