@@ -2906,7 +2906,7 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
         return true;
 
     // Keep database conditions and the normal behavior for other factions.
-    if (player->GetTeam() != ALLIANCE)
+    if (player->GetTeamId() != TEAM_ALLIANCE)
         return IsPlayerMeetingCondition(player, conditionId);
 
     if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_PLAYER_CONDITION, conditionId, player))
