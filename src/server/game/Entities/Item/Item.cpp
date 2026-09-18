@@ -2479,7 +2479,7 @@ ItemModifiedAppearanceEntry const* Item::GetItemModifiedAppearance() const
     // Artifact selection updates ItemAppearanceModID independently of bonus data.
     uint32 appearanceModId = GetTemplate()->IsLegionArtifact() ? GetAppearanceModId() : _bonusData.AppearanceModID;
     ItemModifiedAppearanceEntry const* appearance = TransmogMgr::GetItemModifiedAppearance(GetEntry(), appearanceModId);
-    if (!GetTemplate()->IsLegionArtifact())
+    if (!GetTemplate()->IsLegionArtifact() && appearance)
         return appearance;
 
     // The manager silently falls back to modifier zero. Try the stored artifact
@@ -2518,7 +2518,34 @@ ItemModifiedAppearanceEntry const* Item::GetItemModifiedAppearance() const
             fallbackId = candidate->ID;
         }
     }
+    if (fallback)
     return fallback;
+
+    // No default appearance or eligible artifact selection was resolved.
+    // Custom-server policy: modifier-zero items use the first listed variant.
+    if (appearanceModId == 0)
+    {
+        ItemModifiedAppearanceEntry const* firstAppearance = nullptr;
+
+        for (ItemModifiedAppearanceEntry const* candidate :
+            sItemModifiedAppearanceStore)
+        {
+            if (candidate->ItemID != GetEntry())
+                continue;
+
+            if (!firstAppearance ||
+                candidate->OrderIndex < firstAppearance->OrderIndex ||
+                (candidate->OrderIndex == firstAppearance->OrderIndex &&
+                    candidate->ID < firstAppearance->ID))
+            {
+                firstAppearance = candidate;
+            }
+        }
+
+        return firstAppearance;
+    }
+
+    return nullptr;
 }
 
 uint32 Item::GetModifier(ItemModifier modifier) const
