@@ -74,6 +74,22 @@
 
 extern NonDefaultConstructible<SpellEffectHandlerFn> SpellEffectHandlers[TOTAL_SPELL_EFFECTS];
 
+namespace
+{
+bool IsBattlePetCollectionItem(Item const* item)
+{
+    if (!item)
+        return false;
+
+    for (ItemEffectEntry const* itemEffect : item->GetEffects())
+        if (itemEffect->TriggerType == ITEM_SPELLTRIGGER_ON_LEARN &&
+            BattlePets::BattlePetMgr::GetBattlePetSpeciesBySpell(itemEffect->SpellID))
+            return true;
+
+    return false;
+}
+}
+
 SpellDestination::SpellDestination(WorldObject const& wObj) : _position(wObj.GetMapId(), wObj),
     _transportGUID(wObj.GetTransGUID()), _transportOffset(wObj.GetTransOffset())
 {
@@ -5909,24 +5925,28 @@ SpellCastResult Spell::CheckCast(bool strict, int32* param1 /*= nullptr*/, int32
         }
     }
 
-    // check spell cast conditions from database
-    {
-        ConditionSourceInfo condInfo = ConditionSourceInfo(m_caster, m_targets.GetObjectTarget());
-        if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_SPELL, m_spellInfo->Id, condInfo))
+    // Allow Alliance characters to learn Horde battle pets from inventory items.
+        if (!IsBattlePetCollectionItem(m_CastItem))
         {
-            // mLastFailedCondition can be NULL if there was an error processing the condition in Condition::Meets (i.e. wrong data for ConditionTarget or others)
-            if (condInfo.mLastFailedCondition && condInfo.mLastFailedCondition->ErrorType)
+        // check spell cast conditions from database
             {
-                if (condInfo.mLastFailedCondition->ErrorType == SPELL_FAILED_CUSTOM_ERROR)
-                    m_customError = SpellCustomErrors(condInfo.mLastFailedCondition->ErrorTextId);
-                return SpellCastResult(condInfo.mLastFailedCondition->ErrorType);
-            }
+                ConditionSourceInfo condInfo = ConditionSourceInfo(m_caster, m_targets.GetObjectTarget());
+                if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_SPELL, m_spellInfo->Id, condInfo))
+                {
+                // mLastFailedCondition can be NULL if there was an error processing the condition in Condition::Meets (i.e. wrong data for ConditionTarget or others)
+                if (condInfo.mLastFailedCondition && condInfo.mLastFailedCondition->ErrorType)
+                {
+                    if (condInfo.mLastFailedCondition->ErrorType == SPELL_FAILED_CUSTOM_ERROR)
+                        m_customError = SpellCustomErrors(condInfo.mLastFailedCondition->ErrorTextId);
+                    return SpellCastResult(condInfo.mLastFailedCondition->ErrorType);
+                }
 
-            if (!condInfo.mLastFailedCondition || !condInfo.mLastFailedCondition->ConditionTarget)
-                return SPELL_FAILED_CASTER_AURASTATE;
-            return SPELL_FAILED_BAD_TARGETS;
+                if (!condInfo.mLastFailedCondition || !condInfo.mLastFailedCondition->ConditionTarget)
+                    return SPELL_FAILED_CASTER_AURASTATE;
+                return SPELL_FAILED_BAD_TARGETS;
+                }
+            }
         }
-    }
 
     // Don't check explicit target for passive spells (workaround) (check should be skipped only for learn case)
     // those spells may have incorrect target entries or not filled at all (for example 15332)
