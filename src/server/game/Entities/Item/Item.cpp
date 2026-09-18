@@ -2478,7 +2478,47 @@ ItemModifiedAppearanceEntry const* Item::GetItemModifiedAppearance() const
 {
     // Artifact selection updates ItemAppearanceModID independently of bonus data.
     uint32 appearanceModId = GetTemplate()->IsLegionArtifact() ? GetAppearanceModId() : _bonusData.AppearanceModID;
-    return TransmogMgr::GetItemModifiedAppearance(GetEntry(), appearanceModId);
+    ItemModifiedAppearanceEntry const* appearance = TransmogMgr::GetItemModifiedAppearance(GetEntry(), appearanceModId);
+    if (!GetTemplate()->IsLegionArtifact())
+        return appearance;
+
+    // The manager silently falls back to modifier zero. Try the stored artifact
+    // selection before accepting that fallback, including during disposal.
+    if (appearance && appearanceModId && appearance->ItemAppearanceModifierID == appearanceModId)
+        return appearance;
+
+    if (ArtifactAppearanceEntry const* selected = sArtifactAppearanceStore.LookupEntry(GetModifier(ITEM_MODIFIER_ARTIFACT_APPEARANCE_ID)))
+        if (ArtifactAppearanceSetEntry const* set = sArtifactAppearanceSetStore.LookupEntry(selected->ArtifactAppearanceSetID))
+            if (set->ArtifactID == GetTemplate()->GetArtifactID())
+                if (ItemModifiedAppearanceEntry const* candidate = TransmogMgr::GetItemModifiedAppearance(GetEntry(), selected->ItemAppearanceModifierID))
+                    if (candidate->ItemAppearanceModifierID == selected->ItemAppearanceModifierID)
+                        return candidate;
+
+    if (appearance)
+        return appearance;
+
+    // Recover missing selections using only unlocked artifact appearances.
+    // Pick by ID rather than relying on DB2 iteration order.
+    ItemModifiedAppearanceEntry const* fallback = nullptr;
+    uint32 fallbackId = 0;
+    for (ArtifactAppearanceEntry const* candidate : sArtifactAppearanceStore)
+    {
+        ArtifactAppearanceSetEntry const* set = sArtifactAppearanceSetStore.LookupEntry(candidate->ArtifactAppearanceSetID);
+        if (!set || set->ArtifactID != GetTemplate()->GetArtifactID())
+            continue;
+        if (candidate->UnlockPlayerConditionID && (!GetOwner()
+            || !ConditionMgr::IsPlayerMeetingCondition(GetOwner(), candidate->UnlockPlayerConditionID)))
+            continue;
+        ItemModifiedAppearanceEntry const* resolved = TransmogMgr::GetItemModifiedAppearance(GetEntry(), candidate->ItemAppearanceModifierID);
+        if (!resolved || resolved->ItemAppearanceModifierID != candidate->ItemAppearanceModifierID)
+            continue;
+        if (!fallback || candidate->ID < fallbackId)
+        {
+            fallback = resolved;
+            fallbackId = candidate->ID;
+        }
+    }
+    return fallback;
 }
 
 uint32 Item::GetModifier(ItemModifier modifier) const
@@ -3246,4 +3286,5 @@ void BonusData::AddBonus(uint32 type, std::array<int32, 4> const& values)
             break;
     }
 }
+
 

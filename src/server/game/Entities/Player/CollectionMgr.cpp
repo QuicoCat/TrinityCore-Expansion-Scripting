@@ -611,36 +611,26 @@ void CollectionMgr::SaveAccountItemAppearances(LoginDatabaseTransaction trans)
 void CollectionMgr::AddItemAppearance(Item* item)
 {
     if (!item->IsSoulBound())
+    {
+        if (item->GetTemplate()->IsLegionArtifact())
+            TC_LOG_INFO("entities.player", "Artifact collection: item {} is not soulbound; collection deferred", item->GetEntry());
         return;
+    }
 
     ItemModifiedAppearanceEntry const* itemModifiedAppearance = item->GetItemModifiedAppearance();
 
-    if (!itemModifiedAppearance && item->GetTemplate()->GetArtifactID())
-    {
-        for (ArtifactAppearanceEntry const* artifactAppearance : sArtifactAppearanceStore)
-        {
-            ArtifactAppearanceSetEntry const* appearanceSet =
-                sArtifactAppearanceSetStore.LookupEntry(
-                    artifactAppearance->ArtifactAppearanceSetID);
-
-            if (!appearanceSet ||
-                appearanceSet->ArtifactID != item->GetTemplate()->GetArtifactID())
-                continue;
-
-            itemModifiedAppearance = TransmogMgr::GetItemModifiedAppearance(
-                item->GetEntry(),
-                artifactAppearance->ItemAppearanceModifierID);
-
-            if (itemModifiedAppearance)
-                break;
-        }
-    }
+    if (item->GetTemplate()->IsLegionArtifact())
+        TC_LOG_INFO("entities.player", "Artifact collection: item {}, modifier {}, appearance {}, already permanent {}",
+            item->GetEntry(), item->GetAppearanceModId(), itemModifiedAppearance ? itemModifiedAppearance->ID : 0,
+            itemModifiedAppearance && itemModifiedAppearance->ID < _appearances->size() && _appearances->test(itemModifiedAppearance->ID));
 
     if (!CanAddAppearance(itemModifiedAppearance))
         return;
 
     if (item->IsBOPTradeable() || item->IsRefundable())
     {
+        if (item->GetTemplate()->IsLegionArtifact())
+            TC_LOG_INFO("entities.player", "Artifact collection: item {} receives temporary appearance {}", item->GetEntry(), itemModifiedAppearance->ID);
         AddTemporaryAppearance(item->GetGUID(), itemModifiedAppearance);
         return;
     }
@@ -656,6 +646,8 @@ void CollectionMgr::AddItemAppearanceOnDisposal(Item* item, bool bindForBuyback)
         return;
 
     ItemModifiedAppearanceEntry const* appearance = item->GetItemModifiedAppearance();
+    if (item->GetTemplate()->IsLegionArtifact())
+        TC_LOG_INFO("entities.player", "Artifact disposal: item {}, resolved appearance {}", item->GetEntry(), appearance ? appearance->ID : 0);
     if (!CanAddAppearance(appearance))
         return;
 
@@ -735,8 +727,6 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
     if (!itemTemplate)
         return false;
 
-    bool isLegionArtifact = itemTemplate->IsLegionArtifact();
-
     switch (itemTemplate->GetClass())
     {
         case ITEM_CLASS_WEAPON:
@@ -800,6 +790,9 @@ void CollectionMgr::AddItemAppearance(ItemModifiedAppearanceEntry const* itemMod
     }
 
     _appearances->set(itemModifiedAppearance->ID);
+    if (ItemTemplate const* source = sObjectMgr->GetItemTemplate(itemModifiedAppearance->ItemID))
+        if (source->IsLegionArtifact())
+            TC_LOG_INFO("entities.player", "Artifact collection: permanently unlocked appearance {} from item {}", itemModifiedAppearance->ID, itemModifiedAppearance->ItemID);
     uint32 blockIndex = itemModifiedAppearance->ID / 32;
     uint32 bitIndex = itemModifiedAppearance->ID % 32;
     owner->AddTransmogFlag(blockIndex, 1 << bitIndex);
@@ -1206,3 +1199,4 @@ void CollectionMgr::SendWarbandSceneCollectionData() const
 
     _owner->SendPacket(accountItemCollection.Write());
 }
+
