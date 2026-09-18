@@ -610,6 +610,20 @@ void CollectionMgr::SaveAccountItemAppearances(LoginDatabaseTransaction trans)
 
 void CollectionMgr::AddItemAppearance(Item* item)
 {
+    if (item->GetEntry() == 192226)
+    {
+    auto const* appearance = item->GetItemModifiedAppearance();
+
+    TC_LOG_INFO("entities.player",
+        "Appearance diagnostic: item {}, bound {}, refundable {}, "
+        "tradeable {}, source {}, eligible {}",
+        item->GetEntry(),
+        item->IsSoulBound(),
+        item->IsRefundable(),
+        item->IsBOPTradeable(),
+        appearance ? appearance->ID : 0,
+        CanAddAppearance(appearance));
+    }
     if (!item->IsSoulBound())
     {
         if (item->GetTemplate()->IsLegionArtifact())
