@@ -398,6 +398,8 @@ inline void Battleground::_ProcessJoin(uint32 diff)
             if (Player* player = ObjectAccessor::GetPlayer(GetBgMap(), guid))
             {
                 player->StartCriteria(CriteriaStartEvent::StartBattleground, GetBgMap()->GetId());
+                if (isBattleground())
+                    player->UpdateCriteria(CriteriaType::StartAnyBattleground, 1);
                 player->AtStartOfEncounter(EncounterType::Battleground);
             }
         }
@@ -749,6 +751,8 @@ void Battleground::EndBattleground(Team winner)
             }
 
             player->UpdateCriteria(CriteriaType::WinBattleground, player->GetMapId());
+            if (isBattleground())
+                player->UpdateCriteria(CriteriaType::WinAnyBattleground, 1);
             if (!guildAwarded)
             {
                 guildAwarded = true;
@@ -777,6 +781,8 @@ void Battleground::EndBattleground(Team winner)
         player->SendDirectMessage(pvpMatchComplete.GetRawPacket());
 
         player->UpdateCriteria(CriteriaType::ParticipateInBattleground, player->GetMapId());
+        if (isBattleground())
+            player->UpdateCriteria(CriteriaType::CompleteAnyBattleground, 1);
 
         GetBgMap()->GetBattlegroundScript()->OnEnd(winner);
     }

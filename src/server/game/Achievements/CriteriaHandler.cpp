@@ -546,6 +546,9 @@ void CriteriaHandler::UpdateCriteria(Criteria const* criteria, uint64 miscValue1
         case CriteriaType::KillPlayer:
         case CriteriaType::DeliveredKillingBlow:
         case CriteriaType::PVPKillInArea:
+        case CriteriaType::WinAnyBattleground:
+        case CriteriaType::StartAnyBattleground:
+        case CriteriaType::CompleteAnyBattleground:
         case CriteriaType::WinArena: // This also behaves like CriteriaType::WinAnyRankedArena
         case CriteriaType::ParticipateInArena:
         case CriteriaType::PlayerTriggerGameEvent:
@@ -815,7 +818,6 @@ void CriteriaHandler::UpdateCriteria(Criteria const* criteria, uint64 miscValue1
         case CriteriaType::FishInAnyPool:
         case CriteriaType::GuildBankTabsPurchased:
         case CriteriaType::EarnGuildAchievementPoints:
-        case CriteriaType::WinAnyBattleground:
         case CriteriaType::EarnBattlegroundRating:
         case CriteriaType::GuildTabardCreated:
         case CriteriaType::CompleteQuestsCountForGuild:
@@ -1182,6 +1184,9 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
 
     switch (CriteriaType(criteria->Entry->Type))
     {
+        case CriteriaType::WinAnyBattleground:
+        case CriteriaType::StartAnyBattleground:
+        case CriteriaType::CompleteAnyBattleground:
         case CriteriaType::WinBattleground:
         case CriteriaType::KillCreature:
         case CriteriaType::ReachLevel:
@@ -1449,6 +1454,15 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
             if (!RequiredAchievementSatisfied(criteria->Entry->Asset.AchievementID))
                 return false;
             break;
+        case CriteriaType::WinAnyBattleground:
+        case CriteriaType::StartAnyBattleground:
+        case CriteriaType::CompleteAnyBattleground:
+        {
+            Battleground const* battleground = referencePlayer->GetBattleground();
+            if (!miscValue1 || !battleground || !battleground->isBattleground())
+                return false;
+            break;
+        }
         case CriteriaType::WinBattleground:
         case CriteriaType::ParticipateInBattleground:
         case CriteriaType::DieOnMap:
