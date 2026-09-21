@@ -11166,7 +11166,8 @@ InventoryResult Player::CanUseItem(Item* pItem, bool not_loading, bool forToyCol
                 return res;
 
             // Weapon and armor proficiency must not prevent cross-class equipment.
-            if (pItem->GetSkill() != 0 && pProto->GetClass() != ITEM_CLASS_WEAPON && pProto->GetClass() != ITEM_CLASS_ARMOR
+            if (!(forToyCollection && sDB2Manager.IsToyItem(pItem->GetEntry()))
+                && pItem->GetSkill() != 0 && pProto->GetClass() != ITEM_CLASS_WEAPON && pProto->GetClass() != ITEM_CLASS_ARMOR
                 && GetSkillValue(pItem->GetSkill()) == 0)
                 return EQUIP_ERR_PROFICIENCY_NEEDED;
 
@@ -11186,14 +11187,14 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
     if (proto->HasFlag(ITEM_FLAG2_INTERNAL_ITEM))
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
-    // Collection eligibility is separate from using a toy's spell.
-    bool const collectingHordeToyOnAlliance = forToyCollection && GetTeam() == ALLIANCE
-        && proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && sDB2Manager.IsToyItem(proto->GetId());
+    // Collecting a toy ignores faction/race and profession prerequisites.
+    // Using the collected toy's spell still follows its normal requirements.
+    bool const collectingToy = forToyCollection && sDB2Manager.IsToyItem(proto->GetId());
 
-    if (proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && GetTeam() != HORDE && !collectingHordeToyOnAlliance)
+    if (proto->HasFlag(ITEM_FLAG2_FACTION_HORDE) && GetTeam() != HORDE && !collectingToy)
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
-    if (proto->HasFlag(ITEM_FLAG2_FACTION_ALLIANCE) && GetTeam() != ALLIANCE)
+    if (proto->HasFlag(ITEM_FLAG2_FACTION_ALLIANCE) && GetTeam() != ALLIANCE && !collectingToy)
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
     bool const isEquipment = proto->GetInventoryType() != INVTYPE_NON_EQUIP
@@ -11201,12 +11202,12 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
 
     // Class masks still apply to consumables, recipes and other non-equipment.
     if ((!isEquipment && (proto->GetAllowableClass() & GetClassMask()) == 0)
-        || (!collectingHordeToyOnAlliance && !proto->GetAllowableRace().HasRace(GetRace())))
+        || (!collectingToy && !proto->GetAllowableRace().HasRace(GetRace())))
         return EQUIP_ERR_CANT_EQUIP_EVER;
 
     // Ignore an explicit requirement for the item's own equipment proficiency,
     // but retain profession requirements such as Engineering on goggles.
-    if (proto->GetRequiredSkill() != 0 && !(isEquipment && proto->GetRequiredSkill() == proto->GetSkill()))
+    if (!collectingToy && proto->GetRequiredSkill() != 0 && !(isEquipment && proto->GetRequiredSkill() == proto->GetSkill()))
     {
         if (GetSkillValue(proto->GetRequiredSkill()) == 0)
             return EQUIP_ERR_PROFICIENCY_NEEDED;
@@ -11214,7 +11215,7 @@ InventoryResult Player::CanUseItem(ItemTemplate const* proto, bool skipRequiredL
             return EQUIP_ERR_CANT_EQUIP_SKILL;
     }
 
-    if (proto->GetRequiredSpell() != 0 && !HasSpell(proto->GetRequiredSpell()))
+    if (!collectingToy && proto->GetRequiredSpell() != 0 && !HasSpell(proto->GetRequiredSpell()))
         return EQUIP_ERR_PROFICIENCY_NEEDED;
 
     if (!skipRequiredLevelCheck && GetLevel() < proto->GetBaseRequiredLevel())
