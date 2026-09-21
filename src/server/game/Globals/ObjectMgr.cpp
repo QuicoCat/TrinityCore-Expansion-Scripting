@@ -3289,13 +3289,12 @@ void ObjectMgr::LoadItemTemplates()
     // Toy Box usability is also checked by the client using ItemSparse.
     // Publish the same relaxed prerequisites to both client and server.
     DB2HotfixGenerator<ItemSparseEntry> toyHotfixes(sItemSparseStore);
-    for (ToyEntry const* toy : sToyStore)
+    for (ItemSparseEntry const* sparse : sItemSparseStore)
     {
-        if (toy->ItemID <= 0)
+        if (!sDB2Manager.IsToyItem(sparse->ID))
             continue;
 
-        ItemSparseEntry const* sparse = sItemSparseStore.LookupEntry(uint32(toy->ItemID));
-        if (!sparse || (!sparse->RequiredSkill && !sparse->RequiredSkillRank && !sparse->RequiredAbility))
+        if (!sparse->RequiredSkill && !sparse->RequiredSkillRank && !sparse->RequiredAbility)
             continue;
 
         toyHotfixes.ApplyHotfix(sparse->ID, [](ItemSparseEntry* entry)
