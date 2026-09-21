@@ -3294,7 +3294,8 @@ void ObjectMgr::LoadItemTemplates()
         if (!sDB2Manager.IsToyItem(sparse->ID))
             continue;
 
-        if (!sparse->RequiredSkill && !sparse->RequiredSkillRank && !sparse->RequiredAbility)
+        if (!sparse->RequiredSkill && !sparse->RequiredSkillRank && !sparse->RequiredAbility
+            && sparse->AllowableClass == -1)
             continue;
 
         toyHotfixes.ApplyHotfix(sparse->ID, [](ItemSparseEntry* entry)
@@ -3302,10 +3303,11 @@ void ObjectMgr::LoadItemTemplates()
             entry->RequiredSkill = 0;
             entry->RequiredSkillRank = 0;
             entry->RequiredAbility = 0;
+            entry->AllowableClass = -1; // All classes, including client-side Toy Box checks.
         }, true);
     }
 
-    TC_LOG_INFO("server.loading", ">> Removed skill and prerequisite ability requirements from {} toy items",
+    TC_LOG_INFO("server.loading", ">> Removed class, skill and prerequisite ability requirements from {} toy items",
         toyHotfixes.GetAppliedHotfixesCount());
 
     for (ItemSparseEntry const* sparse : sItemSparseStore)
