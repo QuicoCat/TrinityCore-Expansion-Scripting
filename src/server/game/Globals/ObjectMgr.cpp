@@ -25,6 +25,7 @@
 #include "Containers.h"
 #include "CreatureAIFactory.h"
 #include "CriteriaHandler.h"
+#include "DB2HotfixGenerator.h"
 #include "DB2Stores.h"
 #include "DatabaseEnv.h"
 #include "DisableMgr.h"
@@ -3284,6 +3285,29 @@ struct ItemSpecStats
 void ObjectMgr::LoadItemTemplates()
 {
     uint32 oldMSTime = getMSTime();
+
+    // Toy Box usability is also checked by the client using ItemSparse.
+    // Publish the same relaxed prerequisites to both client and server.
+    DB2HotfixGenerator<ItemSparseEntry> toyHotfixes(sItemSparseStore);
+    for (ToyEntry const* toy : sToyStore)
+    {
+        if (toy->ItemID <= 0)
+            continue;
+
+        ItemSparseEntry const* sparse = sItemSparseStore.LookupEntry(uint32(toy->ItemID));
+        if (!sparse || (!sparse->RequiredSkill && !sparse->RequiredSkillRank && !sparse->RequiredAbility))
+            continue;
+
+        toyHotfixes.ApplyHotfix(sparse->ID, [](ItemSparseEntry* entry)
+        {
+            entry->RequiredSkill = 0;
+            entry->RequiredSkillRank = 0;
+            entry->RequiredAbility = 0;
+        }, true);
+    }
+
+    TC_LOG_INFO("server.loading", ">> Removed skill and prerequisite ability requirements from {} toy items",
+        toyHotfixes.GetAppliedHotfixesCount());
 
     for (ItemSparseEntry const* sparse : sItemSparseStore)
     {
