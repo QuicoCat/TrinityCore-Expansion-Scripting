@@ -23906,9 +23906,6 @@ Optional<SellResult> Player::CanSellItemToVendor(Item const* item, uint32 amount
         return SELL_ERR_CANT_SELL_ITEM;
 
     uint32 sellPrice = item->GetSellPrice(this, true);
-    if (sellPrice <= 0)
-        return SELL_ERR_CANT_SELL_ITEM;
-
     uint64 money = uint64(sellPrice) * amount;
 
     using BuybackStorageType = std::remove_cvref_t<decltype(m_activePlayerData->BuybackPrice[0])>;
