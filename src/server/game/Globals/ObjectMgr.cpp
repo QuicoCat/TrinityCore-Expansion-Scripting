@@ -15,6 +15,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <unordered_set>
+
 #include "ObjectMgr.h"
 #include "AreaTriggerDataStore.h"
 #include "AreaTriggerTemplate.h"
@@ -3401,6 +3403,39 @@ void ObjectMgr::LoadItemTemplates()
             }
         }
     }
+
+    // Pet-learning items must be usable by either faction on both client and
+    // server. Build the lookup directly from the loaded species records.
+    std::unordered_set<uint32> petSummonSpells;
+    for (BattlePetSpeciesEntry const* species : sBattlePetSpeciesStore)
+        if (species->SummonSpellID > 0)
+            petSummonSpells.insert(uint32(species->SummonSpellID));
+
+    DB2HotfixGenerator<ItemSparseEntry> petItemHotfixes(sItemSparseStore);
+    for (auto const& [itemId, itemTemplate] : _itemTemplateStore)
+    {
+        bool const learnsPet = std::ranges::any_of(itemTemplate.Effects, [&petSummonSpells](ItemEffectEntry const* effect)
+        {
+            return effect->TriggerType == ITEM_SPELLTRIGGER_ON_LEARN && effect->SpellID > 0
+                && petSummonSpells.contains(uint32(effect->SpellID));
+        });
+        if (!learnsPet)
+            continue;
+
+        ItemSparseEntry const* sparse = itemTemplate.ExtendedData;
+        if (!(sparse->Flags[1] & (ITEM_FLAG2_FACTION_HORDE | ITEM_FLAG2_FACTION_ALLIANCE))
+            && sparse->AllowableRace == RACEMASK_ALL_v<int32, 2>)
+            continue;
+
+        petItemHotfixes.ApplyHotfix(itemId, [](ItemSparseEntry* entry)
+        {
+            entry->Flags[1] &= ~int32(ITEM_FLAG2_FACTION_HORDE | ITEM_FLAG2_FACTION_ALLIANCE);
+            entry->AllowableRace = RACEMASK_ALL_v<int32, 2>;
+        }, true);
+    }
+
+    TC_LOG_INFO("server.loading", ">> Removed faction and race restrictions from {} pet-learning items",
+        petItemHotfixes.GetAppliedHotfixesCount());
 
     TC_LOG_INFO("server.loading", ">> Loaded {} item templates in {} ms", _itemTemplateStore.size(), GetMSTimeDiffToNow(oldMSTime));
 }
