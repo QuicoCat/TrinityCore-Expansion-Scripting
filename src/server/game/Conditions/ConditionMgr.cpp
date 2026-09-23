@@ -2906,8 +2906,13 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
         return true;
 
     // Keep database conditions and the normal behavior for other factions.
-    if (player->GetTeamId() != TEAM_ALLIANCE)
-        return IsPlayerMeetingCondition(player, conditionId);
+    if (!mountCondition.RaceMask.IsEmpty()
+    && ((mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty()
+        || (mountCondition.RaceMask & ~RACEMASK_ALLIANCE_v<int32, 2>).IsEmpty()))
+    mountCondition.RaceMask = {};
+
+    if (mountCondition.CurrentPvpFaction == 1 || mountCondition.CurrentPvpFaction == 2)
+    mountCondition.CurrentPvpFaction = 0;
 
     if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_PLAYER_CONDITION, conditionId, player))
         return false;
@@ -2923,7 +2928,7 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
     PlayerConditionEntry mountCondition = *condition;
     
     // Allow every character class to use class-restricted mounts.
-    mountCondition.ClassMask = 0;
+    
     
     if (!mountCondition.RaceMask.IsEmpty()
         && (mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty())
