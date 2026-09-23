@@ -2905,37 +2905,33 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
     if (!conditionId)
         return true;
 
-    // Keep database conditions and the normal behavior for other factions.
-    if (!mountCondition.RaceMask.IsEmpty()
-    && ((mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty()
-        || (mountCondition.RaceMask & ~RACEMASK_ALLIANCE_v<int32, 2>).IsEmpty()))
-    mountCondition.RaceMask = {};
-
-    if (mountCondition.CurrentPvpFaction == 1 || mountCondition.CurrentPvpFaction == 2)
-    mountCondition.CurrentPvpFaction = 0;
-
-    if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_PLAYER_CONDITION, conditionId, player))
+    if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(
+            CONDITION_SOURCE_TYPE_PLAYER_CONDITION, conditionId, player))
         return false;
 
-    PlayerConditionEntry const* condition = sPlayerConditionStore.LookupEntry(conditionId);
+    PlayerConditionEntry const* condition =
+        sPlayerConditionStore.LookupEntry(conditionId);
+
     if (!condition)
         return true;
 
-    // Inverted conditions describe exclusions rather than mount eligibility.
     if (condition->GetFlags().HasFlag(PlayerConditionFlags::Invert))
         return !IsPlayerMeetingCondition(player, condition);
 
     PlayerConditionEntry mountCondition = *condition;
-    
-    // Allow every character class to use class-restricted mounts.
-    
-    
+
+    // Allow every class to use class-restricted mounts.
+    mountCondition.ClassMask = 0;
+
+    // Allow Horde- and Alliance-restricted mounts.
     if (!mountCondition.RaceMask.IsEmpty()
-        && (mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty())
+        && ((mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty()
+            || (mountCondition.RaceMask & ~RACEMASK_ALLIANCE_v<int32, 2>).IsEmpty()))
         mountCondition.RaceMask = {};
 
-    // PlayerCondition uses 1 for Horde, 2 for Alliance, and 0 for unrestricted.
-    if (mountCondition.CurrentPvpFaction == 1)
+    // 1 = Horde, 2 = Alliance.
+    if (mountCondition.CurrentPvpFaction == 1
+        || mountCondition.CurrentPvpFaction == 2)
         mountCondition.CurrentPvpFaction = 0;
 
     return IsPlayerMeetingCondition(player, &mountCondition);
