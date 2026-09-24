@@ -692,14 +692,23 @@ void CollectionMgr::AddItemAppearance(uint32 itemId, uint32 appearanceModId /*= 
 
 void CollectionMgr::AddTransmogSet(uint32 transmogSetId)
 {
+    if (_addingTransmogSet)
+        return;
+
+    _addingTransmogSet = true;
+
     for (TransmogSetItemEntry const* item : TransmogMgr::GetTransmogSetItems(transmogSetId))
     {
-        ItemModifiedAppearanceEntry const* itemModifiedAppearance = sItemModifiedAppearanceStore.LookupEntry(item->ItemModifiedAppearanceID);
+        ItemModifiedAppearanceEntry const* itemModifiedAppearance =
+            sItemModifiedAppearanceStore.LookupEntry(item->ItemModifiedAppearanceID);
+
         if (!itemModifiedAppearance)
             continue;
 
         AddItemAppearance(itemModifiedAppearance);
     }
+
+    _addingTransmogSet = false;
 }
 
 bool CollectionMgr::IsSetCompleted(uint32 transmogSetId) const
