@@ -217,6 +217,7 @@ private:
     std::unique_ptr<boost::dynamic_bitset<uint32>> _transmogIllusions;
     Trinity::Containers::FlatSet<int32> _transmogOutfits;
     WarbandSceneCollectionContainer _warbandScenes;
+    bool _addingTransmogSet = false;
 };
 
 #endif // TRINITYCORE_COLLECTION_MGR_H
