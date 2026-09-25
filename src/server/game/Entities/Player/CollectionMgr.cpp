@@ -42,14 +42,6 @@ namespace
 void CollectionMgr::LoadMountDefinitions()
 {
     uint32 oldMSTime = getMSTime();
-    if (MountEntry const* mount = sMountStore.LookupEntry(1267))
-    {
-    TC_LOG_INFO("server.loading",
-        "Mount 1267: spell={}, PlayerConditionID={}, Flags={}",
-        mount->SourceSpellID, mount->PlayerConditionID, mount->Flags);
-    }
-    else
-    TC_LOG_INFO("server.loading", "Mount 1267: absent from Mount.db2");
 
     // Mount journal usability is evaluated by the client from PlayerCondition.
     // Publish relaxed mount conditions so collected mounts are usable across
