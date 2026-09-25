@@ -78,15 +78,21 @@ void CollectionMgr::LoadMountDefinitions()
     TC_LOG_INFO("server.loading", ">> Published {} unrestricted mount condition hotfixes",
         mountConditionHotfixes.GetAppliedHotfixesCount());
 
-    // Diagnostic: determine whether the journal's faction restriction comes
-    // from Mount.Flags. Keep this scoped to Alabaster Thunderwing (1267).
-    DB2HotfixGenerator<MountEntry> factionFlagTestHotfix(sMountStore);
-    factionFlagTestHotfix.ApplyHotfix(1267, [](MountEntry* mount)
+    // The client also checks this Mount flag for faction-restricted mounts.
+    // Clearing it lets collected mounts be summoned from the journal and action bar.
+    DB2HotfixGenerator<MountEntry> factionMountHotfixes(sMountStore);
+    for (MountEntry const* mount : sMountStore)
     {
-        mount->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
-    }, true);
-    TC_LOG_INFO("server.loading", ">> Published {} test Mount.Flags hotfix for mount 1267",
-        factionFlagTestHotfix.GetAppliedHotfixesCount());
+        if (!mount->GetFlags().HasFlag(MountFlags::ExcludeFromJournalIfFactionDoesntMatch))
+            continue;
+
+        factionMountHotfixes.ApplyHotfix(mount->ID, [](MountEntry* entry)
+        {
+            entry->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
+        }, true);
+    }
+    TC_LOG_INFO("server.loading", ">> Published {} unrestricted faction mount hotfixes",
+        factionMountHotfixes.GetAppliedHotfixesCount());
 
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
 
