@@ -2923,11 +2923,8 @@ bool ConditionMgr::IsPlayerMeetingMountCondition(Player const* player, uint32 co
     // Allow every class to use class-restricted mounts.
     mountCondition.ClassMask = 0;
 
-    // Allow Horde- and Alliance-restricted mounts.
-    if (!mountCondition.RaceMask.IsEmpty()
-        && ((mountCondition.RaceMask & ~RACEMASK_HORDE_v<int32, 2>).IsEmpty()
-            || (mountCondition.RaceMask & ~RACEMASK_ALLIANCE_v<int32, 2>).IsEmpty()))
-        mountCondition.RaceMask = {};
+    // Allow collected mounts across all playable races.
+    mountCondition.RaceMask = {};
 
     // 1 = Horde, 2 = Alliance.
     if (mountCondition.CurrentPvpFaction == 1

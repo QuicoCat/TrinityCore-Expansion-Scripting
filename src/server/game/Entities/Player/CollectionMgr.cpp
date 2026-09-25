@@ -18,6 +18,7 @@
 #include "CollectionMgr.h"
 #include "CollectionPackets.h"
 #include "DatabaseEnv.h"
+#include "DB2HotfixGenerator.h"
 #include "DB2Stores.h"
 #include "Item.h"
 #include "Log.h"
@@ -30,6 +31,7 @@
 #include "TransmogrificationPackets.h"
 #include "WorldSession.h"
 #include <boost/dynamic_bitset.hpp>
+#include <unordered_set>
 
 namespace
 {
@@ -40,6 +42,41 @@ namespace
 void CollectionMgr::LoadMountDefinitions()
 {
     uint32 oldMSTime = getMSTime();
+
+    // Mount journal usability is evaluated by the client from PlayerCondition.
+    // Publish relaxed mount conditions so collected mounts are usable across
+    // classes, races and factions, without changing riding or area requirements.
+    std::unordered_set<uint32> mountConditionIds;
+    for (MountEntry const* mount : sMountStore)
+        if (mount->PlayerConditionID)
+            mountConditionIds.insert(mount->PlayerConditionID);
+
+    for (MountCapabilityEntry const* capability : sMountCapabilityStore)
+        if (capability->PlayerConditionID)
+            mountConditionIds.insert(capability->PlayerConditionID);
+
+    DB2HotfixGenerator<PlayerConditionEntry> mountConditionHotfixes(sPlayerConditionStore);
+    for (uint32 conditionId : mountConditionIds)
+    {
+        PlayerConditionEntry const* condition = sPlayerConditionStore.LookupEntry(conditionId);
+        if (!condition || condition->GetFlags().HasFlag(PlayerConditionFlags::Invert))
+            continue;
+
+        if (!condition->ClassMask && condition->RaceMask.IsEmpty()
+            && condition->CurrentPvpFaction != 1 && condition->CurrentPvpFaction != 2)
+            continue;
+
+        mountConditionHotfixes.ApplyHotfix(conditionId, [](PlayerConditionEntry* entry)
+        {
+            entry->ClassMask = 0;
+            entry->RaceMask = {};
+            if (entry->CurrentPvpFaction == 1 || entry->CurrentPvpFaction == 2)
+                entry->CurrentPvpFaction = 0;
+        }, true);
+    }
+
+    TC_LOG_INFO("server.loading", ">> Published {} unrestricted mount condition hotfixes",
+        mountConditionHotfixes.GetAppliedHotfixesCount());
 
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
 
