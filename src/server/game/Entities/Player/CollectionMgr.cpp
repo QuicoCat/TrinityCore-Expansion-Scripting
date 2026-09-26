@@ -78,23 +78,13 @@ void CollectionMgr::LoadMountDefinitions()
     TC_LOG_INFO("server.loading", ">> Published {} unrestricted mount condition hotfixes",
         mountConditionHotfixes.GetAppliedHotfixesCount());
 
-    // Test the faction flag only on known affected mounts. Publishing many
-    // Mount records at once previously made mount 1267 disappear from the journal.
+    // Verified on mount 1267: this client flag also blocks summoning.
     DB2HotfixGenerator<MountEntry> factionFlagTestHotfix(sMountStore);
-    for (uint32 mountId : { 1267u, 277u })
+    factionFlagTestHotfix.ApplyHotfix(1267, [](MountEntry* mount)
     {
-        if (MountEntry const* mount = sMountStore.LookupEntry(mountId))
-        {
-            TC_LOG_INFO("server.loading", "Mount {}: spell={}, PlayerConditionID={}, Flags={}",
-                mountId, mount->SourceSpellID, mount->PlayerConditionID, mount->Flags);
-            if (mount->GetFlags().HasFlag(MountFlags::ExcludeFromJournalIfFactionDoesntMatch))
-                factionFlagTestHotfix.ApplyHotfix(mountId, [](MountEntry* entry)
-                {
-                    entry->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
-                }, true);
-        }
-    }
-    TC_LOG_INFO("server.loading", ">> Published {} test faction mount hotfixes",
+        mount->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
+    }, true);
+    TC_LOG_INFO("server.loading", ">> Published {} test Mount.Flags hotfix for mount 1267",
         factionFlagTestHotfix.GetAppliedHotfixesCount());
 
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
