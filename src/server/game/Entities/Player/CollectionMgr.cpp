@@ -87,28 +87,6 @@ void CollectionMgr::LoadMountDefinitions()
     TC_LOG_INFO("server.loading", ">> Published {} test Mount.Flags hotfix for mount 1267",
         factionFlagTestHotfix.GetAppliedHotfixesCount());
 
-    // SpellMisc faction attributes also prevent the client from summoning
-    // collected mounts. Only change spells referenced by Mount.db2 records.
-    std::unordered_set<uint32> mountSpells;
-    for (MountEntry const* mount : sMountStore)
-        if (mount->SourceSpellID > 0)
-            mountSpells.insert(uint32(mount->SourceSpellID));
-
-    DB2HotfixGenerator<SpellMiscEntry> factionSpellHotfixes(sSpellMiscStore);
-    for (SpellMiscEntry const* misc : sSpellMiscStore)
-    {
-        if (!mountSpells.contains(misc->SpellID)
-            || !(misc->Attributes[7] & (SPELL_ATTR7_HORDE_SPECIFIC_SPELL | SPELL_ATTR7_ALLIANCE_SPECIFIC_SPELL)))
-            continue;
-
-        factionSpellHotfixes.ApplyHotfix(misc->ID, [](SpellMiscEntry* entry)
-        {
-            entry->Attributes[7] &= ~(SPELL_ATTR7_HORDE_SPECIFIC_SPELL | SPELL_ATTR7_ALLIANCE_SPECIFIC_SPELL);
-        }, true);
-    }
-    TC_LOG_INFO("server.loading", ">> Published {} unrestricted faction mount spell hotfixes",
-        factionSpellHotfixes.GetAppliedHotfixesCount());
-
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
 
     if (!result)
