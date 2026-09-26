@@ -87,6 +87,25 @@ void CollectionMgr::LoadMountDefinitions()
     TC_LOG_INFO("server.loading", ">> Published {} test Mount.Flags hotfix for mount 1267",
         factionFlagTestHotfix.GetAppliedHotfixesCount());
 
+    // Test the client's spell faction flags on one collected mount whose
+    // Mount.Flags hotfix hid it from the journal instead of making it usable.
+    DB2HotfixGenerator<SpellMiscEntry> factionSpellTestHotfix(sSpellMiscStore);
+    for (SpellMiscEntry const* misc : sSpellMiscStore)
+    {
+        if (misc->SpellID != 61230)
+            continue;
+
+        TC_LOG_INFO("server.loading", "Mount spell 61230: SpellMisc ID={}, Attributes7={}",
+            misc->ID, misc->Attributes[7]);
+        if (misc->Attributes[7] & (SPELL_ATTR7_HORDE_SPECIFIC_SPELL | SPELL_ATTR7_ALLIANCE_SPECIFIC_SPELL))
+            factionSpellTestHotfix.ApplyHotfix(misc->ID, [](SpellMiscEntry* entry)
+            {
+                entry->Attributes[7] &= ~(SPELL_ATTR7_HORDE_SPECIFIC_SPELL | SPELL_ATTR7_ALLIANCE_SPECIFIC_SPELL);
+            }, true);
+    }
+    TC_LOG_INFO("server.loading", ">> Published {} test mount spell faction hotfixes",
+        factionSpellTestHotfix.GetAppliedHotfixesCount());
+
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
 
     if (!result)
