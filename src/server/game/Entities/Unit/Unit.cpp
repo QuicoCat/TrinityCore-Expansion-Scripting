@@ -8460,11 +8460,8 @@ MountCapabilityEntry const* Unit::GetMountCapability(uint32 mountType) const
         if (mountCapability->ReqSpellAuraID && !HasAura(mountCapability->ReqSpellAuraID))
             continue;
 
-        // Custom server: class mounts do not require the original class spell.
         if (mountCapability->ReqSpellKnownID && !HasSpell(mountCapability->ReqSpellKnownID))
-            {
-            // Intentionally ignored so every class can use collected class mounts.
-            }
+    continue;
 
         if (Player const* thisPlayer = ToPlayer())
             if (!ConditionMgr::IsPlayerMeetingMountCondition(thisPlayer, mountCapability->PlayerConditionID))
