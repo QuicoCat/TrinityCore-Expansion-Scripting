@@ -1703,6 +1703,7 @@ enum SpellEffects
     SPELL_EFFECT_357                                = 357, // MiscValue[0] = ItemBonusList
     SPELL_EFFECT_358                                = 358, // MiscValue[0] = ItemBonusList
     SPELL_EFFECT_359                                = 359,
+    SPELL_EFFECT_360                                = 360,
     TOTAL_SPELL_EFFECTS
 };
 
@@ -3225,9 +3226,11 @@ enum GameobjectTypes : uint8
     GAMEOBJECT_TYPE_PERKS_PROGRAM_CHEST         = 62,
     GAMEOBJECT_TYPE_FUTURE_PATCH                = 63,
     GAMEOBJECT_TYPE_ASSIST_ACTION               = 64,
+    GAMEOBJECT_TYPE_RESERVED_13A                = 65,
+    GAMEOBJECT_TYPE_RESERVED_13B                = 66,
 };
 
-#define MAX_GAMEOBJECT_TYPE                  65             // sending to client this or greater value can crash client.
+#define MAX_GAMEOBJECT_TYPE                  67             // sending to client this or greater value can crash client.
 #define MAX_GAMEOBJECT_DATA                  35             // Max number of uint32 vars in gameobject_template data field
 
 enum GameObjectFlags
@@ -5858,7 +5861,7 @@ constexpr uint8 ClassByQuestSort(int32 QuestSort)
     return 0;
 }
 
-// SkillLine.db2 (12.0.1.66838)
+// SkillLine.db2 (12.1.0.69404)
 enum SkillType
 {
     SKILL_NONE                                      = 0,
@@ -6201,6 +6204,7 @@ enum SkillType
     SKILL_RACIAL_DRACTHYR                           = 2808,
     SKILL_EVOKER                                    = 2810,
     SKILL_STYGIA_CRAFTING                           = 2811,
+    SKILL_ADVENTURER                                = 2816,
     SKILL_LANGUAGE_CYPHER                           = 2817,
     SKILL_PROTOFORM_SYNTHESIS                       = 2819,
     SKILL_ARCANA_MANIPULATION                       = 2821,
@@ -6252,11 +6256,13 @@ enum SkillType
     SKILL_MIDNIGHT_MINING                           = 2916,
     SKILL_MIDNIGHT_SKINNING                         = 2917,
     SKILL_MIDNIGHT_TAILORING                        = 2918,
+    SKILL_TRAVELER                                  = 2929,
     SKILL_RACIAL_HARANIR                            = 2930,
     SKILL_ALCHEMY_RESEARCH                          = 2950,
     SKILL_PET_EXOTIC_WHIPTAIL                       = 2961,
     SKILL_DYE_CRAFTING                              = 2984,
-    SKILL_LANG_HARANI                               = 2987
+    SKILL_LANG_HARANI                               = 2987,
+    SKILL_HUNGRY_TORTOLLAN                          = 3004
 };
 
 constexpr SkillType SkillByLockType(LockType locktype)
@@ -8768,6 +8774,8 @@ enum class GameError : uint32
     ERR_SOLO_JOIN_TRAINING_GROUND                                   = 1240,
     ERR_LFG_JOINED_TRAINING_GROUNDS_QUEUE                           = 1241,
     ERR_RESTRICTED_ACCOUNT_LFG_LIST_CLASS_TRIAL                     = 1242,
+    ERR_AGE_RESTRICTED_MAIL_MINOR                                   = 1243,
+    ERR_AGE_RESTRICTED_MAIL_UNVERIFIED                              = 1244,
 };
 
 enum class MountResult : uint32

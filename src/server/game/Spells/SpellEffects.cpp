@@ -449,6 +449,7 @@ NonDefaultConstructible<SpellEffectHandlerFn> SpellEffectHandlers[TOTAL_SPELL_EF
     &Spell::EffectNULL,                                     //357 SPELL_EFFECT_357
     &Spell::EffectNULL,                                     //358 SPELL_EFFECT_358
     &Spell::EffectNULL,                                     //359 SPELL_EFFECT_359
+    &Spell::EffectNULL,                                     //360 SPELL_EFFECT_360
 };
 
 void Spell::EffectNULL()
@@ -1103,8 +1104,17 @@ void Spell::EffectTeleportUnitsWithVisualLoadingScreen()
     }
 
     if (effectInfo->MiscValueB)
+    {
         if (Player* playerTarget = unitTarget->ToPlayer())
-            playerTarget->SendDirectMessage(WorldPackets::Spells::SpellVisualLoadScreen(effectInfo->MiscValueB, Milliseconds(effectInfo->MiscValue)).Write());
+        {
+            WorldPackets::Spells::SpellVisualLoadScreen spellVisualLoadScreen;
+            spellVisualLoadScreen.SpellVisualKitID = effectInfo->MiscValueB;
+            spellVisualLoadScreen.Duration = Milliseconds(effectInfo->MiscValue);
+            spellVisualLoadScreen.IsTransfer = targetDest.Location.GetMapId() != playerTarget->GetMapId()
+                || (targetDest.InstanceId && *targetDest.InstanceId != playerTarget->GetInstanceId());
+            playerTarget->SendDirectMessage(spellVisualLoadScreen.Write());
+        }
+    }
 
     TeleportToOptions options = GetTeleportOptions(m_caster, unitTarget, m_destTargets[effectInfo->EffectIndex]);
     unitTarget->m_Events.AddEventAtOffset(new DelayedSpellTeleportEvent(unitTarget, targetDest, options, m_spellInfo->Id),
@@ -3038,7 +3048,7 @@ void Spell::EffectSummonObjectWild()
 
     Map* map = target->GetMap();
     Position pos = Position(x, y, z, o);
-    QuaternionData rot = QuaternionData::fromEulerAnglesZYX(o, 0.f, 0.f);
+    QuaternionData rot = QuaternionData::fromOrientation(o);
     GameObject* go = GameObject::CreateGameObject(effectInfo->MiscValue, map, pos, rot, 255, GO_STATE_READY);
     if (!go)
         return;
@@ -3282,7 +3292,7 @@ void Spell::EffectDuel()
         caster->GetPositionZ(),
         caster->GetOrientation()
     };
-    QuaternionData rot = QuaternionData::fromEulerAnglesZYX(pos.GetOrientation(), 0.f, 0.f);
+    QuaternionData rot = QuaternionData::fromOrientation(pos.GetOrientation());
 
     GameObject* go = GameObject::CreateGameObject(effectInfo->MiscValue, map, pos, rot, 0, GO_STATE_READY);
     if (!go)
@@ -3633,7 +3643,7 @@ void Spell::EffectSummonObject()
 
     Map* map = m_caster->GetMap();
     Position pos = Position(x, y, z, o);
-    QuaternionData rot = QuaternionData::fromEulerAnglesZYX(o, 0.f, 0.f);
+    QuaternionData rot = QuaternionData::fromOrientation(o);
 
     GameObject* go = GameObject::CreateGameObject(effectInfo->MiscValue, map, pos, rot, 255, GO_STATE_READY);
     if (!go)
@@ -4505,7 +4515,7 @@ void Spell::EffectTransmitted()
         unitCaster->GetPosition(fx, fy, fz, fo);
 
     Position pos = { fx, fy, fz, fo };
-    QuaternionData rot = QuaternionData::fromEulerAnglesZYX(fo, 0.f, 0.f);
+    QuaternionData rot = QuaternionData::fromOrientation(fo);
 
     GameObject* go = GameObject::CreateGameObject(name_id, cMap, pos, rot, 255, GO_STATE_READY);
     if (!go)
@@ -5345,7 +5355,7 @@ void Spell::EffectSummonPersonalGameObject()
 
     Map* map = m_caster->GetMap();
     Position pos = Position(x, y, z, o);
-    QuaternionData rot = QuaternionData::fromEulerAnglesZYX(o, 0.f, 0.f);
+    QuaternionData rot = QuaternionData::fromOrientation(o);
     GameObject* go = GameObject::CreateGameObject(goId, map, pos, rot, 255, GO_STATE_READY);
 
     if (!go)
