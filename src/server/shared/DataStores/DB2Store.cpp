@@ -41,8 +41,11 @@ DB2StorageBase::~DB2StorageBase()
 void DB2StorageBase::WriteRecord(uint32 id, LocaleConstant locale, ByteBuffer& buffer) const
 {
     ASSERT(id < _indexTableSize);
-    char const* entry = ASSERT_NOTNULL(_indexTable[id]);
+    WriteRecordData(ASSERT_NOTNULL(_indexTable[id]), locale, buffer);
+}
 
+void DB2StorageBase::WriteRecordData(char const* entry, LocaleConstant locale, ByteBuffer& buffer) const
+{
     if (!_loadInfo->Meta->HasIndexFieldInData())
         entry += 4;
 

@@ -16,13 +16,18 @@
  */
 
 #include "TransmogMgr.h"
+#include "DB2HotfixGenerator.h"
 #include "DB2Stores.h"
 #include "FlatSet.h"
+#include "Log.h"
 #include "MapUtils.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "SharedDefines.h"
 #include "TransmogrificationPackets.h"
 #include "Util.h"
+#include <algorithm>
+#include <unordered_set>
 
 namespace
 {
@@ -121,6 +126,121 @@ bool IsValidTransmogOutfitSlotForItem(ItemTemplate const* item, TransmogOutfitSl
             break;
     }
     return false;
+}
+}
+
+namespace
+{
+// Custom: unrestricted transmog.
+// The server already accepts any collected appearance on any class. Which appearances a class can
+// use is decided on the client (appearance collection, transmogrifier, Sets tab), so modified copies
+// of that client data are sent as client-only hotfixes. The server keeps its own data, so loot,
+// vendors and quest rewards still follow the normal class rules.
+constexpr uint32 TransmogArmorTypes = (1 << ITEM_SUBCLASS_ARMOR_CLOTH) | (1 << ITEM_SUBCLASS_ARMOR_LEATHER)
+    | (1 << ITEM_SUBCLASS_ARMOR_MAIL) | (1 << ITEM_SUBCLASS_ARMOR_PLATE) | (1 << ITEM_SUBCLASS_ARMOR_SHIELD);
+
+int32 AllClassesMask = 0;
+
+// True when the condition checks nothing but the character's class
+bool IsClassOnlyCondition(PlayerConditionEntry const* condition)
+{
+    if (!condition || !condition->ClassMask || !condition->RaceMask.IsEmpty() || condition->CurrentPvpFaction
+        || condition->GetFlags().HasFlag(PlayerConditionFlags::Invert))
+        return false;
+
+    auto isEmpty = [](auto const& values) { return std::ranges::all_of(values, [](auto value) { return value == 0; }); };
+
+    return !condition->MinLevel && !condition->MaxLevel && !condition->LanguageID && !condition->MinLanguage && !condition->MaxLanguage
+        && !condition->MaxFactionID && !condition->PvpMedal && !condition->WorldStateExpressionID && !condition->WeatherID
+        && !condition->PartyStatus && !condition->LifetimeMaxPVPRank && condition->Gender < 0 && condition->NativeGender < 0
+        && !condition->QuestKillID && condition->MinExpansionLevel < 0 && condition->MaxExpansionLevel < 0
+        && !condition->MinAvgItemLevel && !condition->MaxAvgItemLevel && !condition->MinAvgEquippedItemLevel && !condition->MaxAvgEquippedItemLevel
+        && !condition->PhaseUseFlags && !condition->PhaseID && !condition->PhaseGroupID
+        && condition->ChrSpecializationIndex < 0 && condition->ChrSpecializationRole < 0 && !condition->ModifierTreeID
+        && condition->PowerType < 0 && !condition->MovementFlags && !condition->WeaponSubclassMask
+        && !condition->MaxGuildLevel && !condition->MinGuildLevel && condition->MaxExpansionTier < 0 && condition->MinExpansionTier < 0
+        && !condition->MinPVPRank && !condition->MaxPVPRank && !condition->ContentTuningID && !condition->CovenantID
+        && isEmpty(condition->SkillID) && isEmpty(condition->MinFactionID) && isEmpty(condition->PrevQuestID)
+        && isEmpty(condition->CurrQuestID) && isEmpty(condition->CurrentCompletedQuestID) && isEmpty(condition->SpellID)
+        && isEmpty(condition->ItemID) && isEmpty(condition->Explored) && isEmpty(condition->Time) && isEmpty(condition->AuraSpellID)
+        && isEmpty(condition->Achievement) && isEmpty(condition->AreaID) && isEmpty(condition->LfgStatus)
+        && isEmpty(condition->CurrencyID) && isEmpty(condition->QuestKillMonster) && isEmpty(condition->TraitNodeEntryID);
+}
+
+bool HasClassOnlyCondition(uint32 playerConditionId)
+{
+    return IsClassOnlyCondition(sPlayerConditionStore.LookupEntry(playerConditionId));
+}
+
+void PublishUnrestrictedTransmogHotfixes()
+{
+    for (ChrClassesEntry const* chrClass : sChrClassesStore)
+        AllClassesMask |= 1 << (chrClass->ID - 1);
+
+    // ChrClasses: armor types a class can transmog (normally only its own, e.g. plate for Warriors)
+    std::vector<uint32> classIds;
+    for (ChrClassesEntry const* chrClass : sChrClassesStore)
+        if (chrClass->ArmorTypeMask && (chrClass->ArmorTypeMask & TransmogArmorTypes) != TransmogArmorTypes)
+            classIds.push_back(chrClass->ID);
+
+    DB2HotfixGenerator<ChrClassesEntry> classHotfixes(sChrClassesStore);
+    classHotfixes.ApplyClientOnlyHotfix(classIds, [](ChrClassesEntry* chrClass)
+    {
+        chrClass->ArmorTypeMask |= TransmogArmorTypes;
+    });
+
+    // ItemSparse: class restrictions (tier sets and other class gear) of weapons and armor that teach an appearance
+    std::unordered_set<uint32> appearanceItems;
+    for (ItemModifiedAppearanceEntry const* appearanceMod : sItemModifiedAppearanceStore)
+        appearanceItems.insert(appearanceMod->ItemID);
+
+    std::vector<uint32> itemIds;
+    for (ItemSparseEntry const* itemSparse : sItemSparseStore)
+    {
+        if ((itemSparse->AllowableClass & CLASSMASK_ALL_PLAYABLE) == CLASSMASK_ALL_PLAYABLE || !appearanceItems.contains(itemSparse->ID))
+            continue;
+
+        ItemEntry const* item = sItemStore.LookupEntry(itemSparse->ID);
+        if (item && (item->ClassID == ITEM_CLASS_WEAPON || item->ClassID == ITEM_CLASS_ARMOR))
+            itemIds.push_back(itemSparse->ID);
+    }
+
+    DB2HotfixGenerator<ItemSparseEntry> itemHotfixes(sItemSparseStore);
+    itemHotfixes.ApplyClientOnlyHotfix(itemIds, [](ItemSparseEntry* itemSparse)
+    {
+        itemSparse->AllowableClass = -1;
+    });
+
+    // TransmogSet: Sets tab class masks (sets without one are not class sets and stay as they are)
+    std::vector<uint32> setIds;
+    for (TransmogSetEntry const* set : sTransmogSetStore)
+        if ((set->ClassMask && (set->ClassMask & CLASSMASK_ALL_PLAYABLE) != CLASSMASK_ALL_PLAYABLE) || HasClassOnlyCondition(set->PlayerConditionID))
+            setIds.push_back(set->ID);
+
+    DB2HotfixGenerator<TransmogSetEntry> setHotfixes(sTransmogSetStore);
+    setHotfixes.ApplyClientOnlyHotfix(setIds, [](TransmogSetEntry* set)
+    {
+        if (set->ClassMask)
+            set->ClassMask = AllClassesMask;
+
+        if (HasClassOnlyCondition(set->PlayerConditionID))
+            set->PlayerConditionID = 0;
+    });
+
+    // ItemAppearance: appearances limited to one class by their condition
+    std::vector<uint32> appearanceIds;
+    for (ItemAppearanceEntry const* appearance : sItemAppearanceStore)
+        if (HasClassOnlyCondition(appearance->PlayerConditionID))
+            appearanceIds.push_back(appearance->ID);
+
+    DB2HotfixGenerator<ItemAppearanceEntry> appearanceHotfixes(sItemAppearanceStore);
+    appearanceHotfixes.ApplyClientOnlyHotfix(appearanceIds, [](ItemAppearanceEntry* appearance)
+    {
+        appearance->PlayerConditionID = 0;
+    });
+
+    TC_LOG_INFO("server.loading", ">> Unrestricted transmog: published {} ChrClasses, {} ItemSparse, {} TransmogSet and {} ItemAppearance client-only hotfixes",
+        classHotfixes.GetAppliedHotfixesCount(), itemHotfixes.GetAppliedHotfixesCount(), setHotfixes.GetAppliedHotfixesCount(), appearanceHotfixes.GetAppliedHotfixesCount());
 }
 }
 
@@ -225,6 +345,8 @@ void TransmogMgr::Load()
     for (TransmogSituationEntry const* transmogSituation : sTransmogSituationStore)
         if (transmogSituation->HasFlag(TransmogSituationFlags::DefaultsToOn))
             DefaultSituations.push_back(transmogSituation);
+
+    PublishUnrestrictedTransmogHotfixes();
 }
 
 ItemModifiedAppearanceEntry const* TransmogMgr::GetItemModifiedAppearance(uint32 itemId, uint32 appearanceModId)

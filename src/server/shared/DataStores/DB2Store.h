@@ -42,6 +42,8 @@ public:
 
     bool HasRecord(uint32 id) const { return id < _indexTableSize && _indexTable[id] != nullptr; }
     void WriteRecord(uint32 id, LocaleConstant locale, ByteBuffer& buffer) const;
+    // Custom: serializes a record laid out like this store's records (copies sent as client-only hotfixes)
+    void WriteRecordData(char const* entry, LocaleConstant locale, ByteBuffer& buffer) const;
     void EraseRecord(uint32 id) { if (id < _indexTableSize) _indexTable[id] = nullptr; }
 
     std::string const& GetFileName() const { return _fileName; }

@@ -2078,6 +2078,10 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading transmog data...");
     TransmogMgr::Load();
 
+    // Custom: must run after every startup step that generates client hotfixes
+    TC_LOG_INFO("server.loading", "Setting ids of generated hotfixes...");
+    sDB2Manager.SetGeneratedHotfixUniqueIds();
+
     uint32 startupDuration = GetMSTimeDiffToNow(startupBegin);
 
     TC_LOG_INFO("server.worldserver", "World initialized in {} minutes {} seconds", startupDuration / 60000, startupDuration % 60000 / 1000);

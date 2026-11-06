@@ -28,3 +28,13 @@ void DB2HotfixGeneratorBase::AddClientHotfix(uint32 tableHash, uint32 recordId)
 {
     sDB2Manager.InsertNewHotfix(tableHash, recordId);
 }
+
+void DB2HotfixGeneratorBase::AddClientOnlyHotfix(uint32 tableHash, uint32 recordId, std::shared_ptr<void const> record)
+{
+    sDB2Manager.InsertNewClientOnlyHotfix(tableHash, recordId, std::move(record));
+}
+
+void const* DB2HotfixGeneratorBase::GetClientOnlyHotfixRecord(uint32 tableHash, uint32 recordId)
+{
+    return sDB2Manager.GetClientOnlyHotfixRecord(tableHash, int32(recordId));
+}

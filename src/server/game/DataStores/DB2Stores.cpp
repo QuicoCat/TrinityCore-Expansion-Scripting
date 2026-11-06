@@ -16,6 +16,7 @@
  */
 
 #include "DB2Stores.h"
+#include "ByteBuffer.h"
 #include "Containers.h"
 #include "DB2LoadInfo.h"
 #include "DatabaseEnv.h"
@@ -481,6 +482,8 @@ namespace
     std::array<HotfixBlobMap, TOTAL_LOCALES> _hotfixBlob;
     std::unordered_multimap<uint32 /*tableHash*/, AllowedHotfixOptionalData> _allowedHotfixOptionalData;
     std::array<std::map<HotfixBlobKey, std::vector<DB2Manager::HotfixOptionalData>>, TOTAL_LOCALES> _hotfixOptionalData;
+    std::map<HotfixBlobKey, std::shared_ptr<void const>> _clientOnlyHotfixRecords;
+    std::vector<int32> _generatedHotfixPushIds;
 
     AreaGroupMemberContainer _areaGroupMembers;
     ArtifactPowersContainer _artifactPowers;
@@ -1954,6 +1957,12 @@ std::vector<DB2Manager::HotfixOptionalData> const* DB2Manager::GetHotfixOptional
     return Trinity::Containers::MapGetValuePtr(_hotfixOptionalData[locale], std::make_pair(tableHash, recordId));
 }
 
+void const* DB2Manager::GetClientOnlyHotfixRecord(uint32 tableHash, int32 recordId) const
+{
+    auto itr = _clientOnlyHotfixRecords.find(std::make_pair(tableHash, recordId));
+    return itr != _clientOnlyHotfixRecords.end() ? itr->second.get() : nullptr;
+}
+
 uint32 DB2Manager::GetEmptyAnimStateID() const
 {
     return sAnimationDataStore.GetNumRows();
@@ -1975,6 +1984,69 @@ void DB2Manager::InsertNewHotfix(uint32 tableHash, uint32 recordId)
     HotfixPush& push = _hotfixData[hotfixRecord.ID.PushID];
     push.Records.push_back(hotfixRecord);
     push.AvailableLocalesMask |= hotfixRecord.AvailableLocalesMask;
+
+    _generatedHotfixPushIds.push_back(hotfixRecord.ID.PushID);
+}
+
+void DB2Manager::SetGeneratedHotfixUniqueIds()
+{
+    // the record data a session can receive depends on its locale, hash every locale sessions can use
+    std::set<LocaleConstant> sessionLocales;
+    for (uint8 locale = LOCALE_enUS; locale < TOTAL_LOCALES; ++locale)
+        if (IsValidLocale(LocaleConstant(locale)))
+            sessionLocales.insert(sWorld->GetAvailableDbcLocale(LocaleConstant(locale)));
+
+    for (int32 pushId : _generatedHotfixPushIds)
+    {
+        HotfixPush* push = Trinity::Containers::MapGetValuePtr(_hotfixData, pushId);
+        if (!push)
+            continue;
+
+        for (HotfixRecord& hotfixRecord : push->Records)
+        {
+            Trinity::HashFnv1a<uint32> hash;
+            hash.UpdateData(hotfixRecord.TableHash);
+            hash.UpdateData(hotfixRecord.RecordID);
+
+            // same data as WorldSession::HandleHotfixRequest sends
+            DB2StorageBase const* storage = GetStorage(hotfixRecord.TableHash);
+            if (storage && storage->HasRecord(uint32(hotfixRecord.RecordID)))
+            {
+                void const* clientOnlyRecord = GetClientOnlyHotfixRecord(hotfixRecord.TableHash, hotfixRecord.RecordID);
+                for (LocaleConstant locale : sessionLocales)
+                {
+                    ByteBuffer data;
+                    if (clientOnlyRecord)
+                        storage->WriteRecordData(static_cast<char const*>(clientOnlyRecord), locale, data);
+                    else
+                        storage->WriteRecord(uint32(hotfixRecord.RecordID), locale, data);
+
+                    if (std::vector<HotfixOptionalData> const* optionalDataEntries = GetHotfixOptionalData(hotfixRecord.TableHash, hotfixRecord.RecordID, locale))
+                    {
+                        for (HotfixOptionalData const& optionalData : *optionalDataEntries)
+                        {
+                            data << uint32(optionalData.Key);
+                            data.append(optionalData.Data.data(), optionalData.Data.size());
+                        }
+                    }
+
+                    hash.UpdateData(locale);
+                    hash.UpdateData(std::span<uint8 const>(data.data(), data.size()));
+                }
+            }
+
+            hotfixRecord.ID.UniqueID = hash.Value ? hash.Value : 1;
+        }
+    }
+
+    TC_LOG_INFO("server.loading", ">> Set content based ids for {} generated hotfixes", _generatedHotfixPushIds.size());
+}
+
+void DB2Manager::InsertNewClientOnlyHotfix(uint32 tableHash, uint32 recordId, std::shared_ptr<void const> record)
+{
+    // one push per record is enough, a later client-only hotfix of the same record replaces the copy
+    if (_clientOnlyHotfixRecords.insert_or_assign(std::make_pair(tableHash, int32(recordId)), std::move(record)).second)
+        InsertNewHotfix(tableHash, recordId);
 }
 
 std::vector<uint32> DB2Manager::GetAreasForGroup(uint32 areaGroupId) const

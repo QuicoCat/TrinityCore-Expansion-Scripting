@@ -24,6 +24,7 @@
 #include "SharedDefines.h"
 #include "advstd.h"
 #include <map>
+#include <memory>
 #include <set>
 #include <span>
 #include <unordered_set>
@@ -463,6 +464,11 @@ public:
     HotfixContainer const& GetHotfixData() const;
     std::vector<uint8> const* GetHotfixBlobData(uint32 tableHash, int32 recordId, LocaleConstant locale) const;
     std::vector<HotfixOptionalData> const* GetHotfixOptionalData(uint32 tableHash, int32 recordId, LocaleConstant locale) const;
+    // Custom: record copy sent to clients instead of the server's own record, see DB2HotfixGenerator::ApplyClientOnlyHotfix
+    void const* GetClientOnlyHotfixRecord(uint32 tableHash, int32 recordId) const;
+    // Custom: gives the hotfixes generated during startup unique ids derived from their content, so
+    // clients keep using their cached copy across restarts and only download them again when they change
+    void SetGeneratedHotfixUniqueIds();
 
     uint32 GetEmptyAnimStateID() const;
     std::vector<uint32> GetAreasForGroup(uint32 areaGroupId) const;
@@ -573,6 +579,7 @@ public:
 private:
     friend class DB2HotfixGeneratorBase;
     void InsertNewHotfix(uint32 tableHash, uint32 recordId);
+    void InsertNewClientOnlyHotfix(uint32 tableHash, uint32 recordId, std::shared_ptr<void const> record);
     int32 _maxHotfixId = 0;
 };
 

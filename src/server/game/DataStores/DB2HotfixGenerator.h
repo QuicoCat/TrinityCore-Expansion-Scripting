@@ -20,6 +20,7 @@
 
 #include "DB2Store.h"
 #include <initializer_list>
+#include <memory>
 #include <span>
 
 class TC_GAME_API DB2HotfixGeneratorBase
@@ -27,6 +28,8 @@ class TC_GAME_API DB2HotfixGeneratorBase
 public:
     static void LogMissingRecord(std::string const& storageName, uint32 recordId);
     static void AddClientHotfix(uint32 tableHash, uint32 recordId);
+    static void AddClientOnlyHotfix(uint32 tableHash, uint32 recordId, std::shared_ptr<void const> record);
+    static void const* GetClientOnlyHotfixRecord(uint32 tableHash, uint32 recordId);
 };
 
 template<class T>
@@ -56,6 +59,31 @@ public:
 
             if (notifyClient)
                 DB2HotfixGeneratorBase::AddClientHotfix(_storage.GetTableHash(), id);
+        }
+    }
+
+    // Custom: sends clients a modified copy of the records while the server keeps using its own
+    // unmodified data (for restrictions that only the client should stop enforcing)
+    void ApplyClientOnlyHotfix(std::span<uint32 const> ids, void(*fixer)(T*))
+    {
+        for (uint32 id : ids)
+        {
+            T const* entry = _storage.LookupEntry(id);
+            if (!entry)
+            {
+                DB2HotfixGeneratorBase::LogMissingRecord(_storage.GetFileName(), id);
+                continue;
+            }
+
+            // build on an earlier client-only copy of the same record
+            if (T const* existingCopy = static_cast<T const*>(DB2HotfixGeneratorBase::GetClientOnlyHotfixRecord(_storage.GetTableHash(), id)))
+                entry = existingCopy;
+
+            std::shared_ptr<T> clientEntry = std::make_shared<T>(*entry);
+            fixer(clientEntry.get());
+            ++_count;
+
+            DB2HotfixGeneratorBase::AddClientOnlyHotfix(_storage.GetTableHash(), id, std::move(clientEntry));
         }
     }
 

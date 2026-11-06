@@ -35,7 +35,11 @@ void WorldSession::HandleDBQueryBulk(WorldPackets::Hotfix::DBQueryBulk& dbQuery)
         {
             dbReply.Status = DB2Manager::HotfixRecord::Status::Valid;
             dbReply.Timestamp = GameTime::GetGameTime();
-            store->WriteRecord(record.RecordID, GetSessionDbcLocale(), dbReply.Data);
+            // Custom: client-only hotfixes replace the record clients see
+            if (void const* clientOnlyRecord = sDB2Manager.GetClientOnlyHotfixRecord(dbQuery.TableHash, int32(record.RecordID)))
+                store->WriteRecordData(static_cast<char const*>(clientOnlyRecord), GetSessionDbcLocale(), dbReply.Data);
+            else
+                store->WriteRecord(record.RecordID, GetSessionDbcLocale(), dbReply.Data);
 
             if (std::vector<DB2Manager::HotfixOptionalData> const* optionalDataEntries = sDB2Manager.GetHotfixOptionalData(dbQuery.TableHash, record.RecordID, GetSessionDbcLocale()))
             {
@@ -94,7 +98,11 @@ void WorldSession::HandleHotfixRequest(WorldPackets::Hotfix::HotfixRequest& hotf
                     if (storage && storage->HasRecord(uint32(hotfixRecord.RecordID)))
                     {
                         std::size_t pos = hotfixQueryResponse.HotfixContent.size();
-                        storage->WriteRecord(uint32(hotfixRecord.RecordID), GetSessionDbcLocale(), hotfixQueryResponse.HotfixContent);
+                        // Custom: client-only hotfixes replace the record clients see, for every push of that record
+                        if (void const* clientOnlyRecord = sDB2Manager.GetClientOnlyHotfixRecord(hotfixRecord.TableHash, hotfixRecord.RecordID))
+                            storage->WriteRecordData(static_cast<char const*>(clientOnlyRecord), GetSessionDbcLocale(), hotfixQueryResponse.HotfixContent);
+                        else
+                            storage->WriteRecord(uint32(hotfixRecord.RecordID), GetSessionDbcLocale(), hotfixQueryResponse.HotfixContent);
 
                         if (std::vector<DB2Manager::HotfixOptionalData> const* optionalDataEntries = sDB2Manager.GetHotfixOptionalData(hotfixRecord.TableHash, hotfixRecord.RecordID, GetSessionDbcLocale()))
                         {

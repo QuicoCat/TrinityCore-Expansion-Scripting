@@ -23040,6 +23040,14 @@ void Player::SendSpellModifiers() const
 // send Proficiency
 void Player::SendProficiency(ItemClass itemClass, uint32 itemSubclassMask) const
 {
+    // Custom: unrestricted transmog - the client is told the character can use every weapon and armor
+    // type, so the transmogrifier offers all of them (equipping them is already allowed in CanUseItem).
+    // Only the client sees this, the proficiencies the server keeps are unchanged.
+    if (itemClass == ITEM_CLASS_WEAPON)
+        itemSubclassMask |= (1 << MAX_ITEM_SUBCLASS_WEAPON) - 1;
+    else if (itemClass == ITEM_CLASS_ARMOR)
+        itemSubclassMask |= (1 << MAX_ITEM_SUBCLASS_ARMOR) - 1;
+
     WorldPackets::Item::SetProficiency packet;
     packet.ProficiencyMask = itemSubclassMask;
     packet.ProficiencyClass = itemClass;
