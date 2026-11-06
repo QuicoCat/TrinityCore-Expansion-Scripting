@@ -1966,6 +1966,10 @@ void DB2Manager::InsertNewHotfix(uint32 tableHash, uint32 recordId)
     hotfixRecord.RecordID = recordId;
     hotfixRecord.ID.PushID = ++_maxHotfixId;
     hotfixRecord.ID.UniqueID = rand32();
+    // Custom: HotfixStatus defaults to Invalid, and HandleHotfixRequest only sends record data for
+    // Valid hotfixes - generated client hotfixes reached the client as "invalid" without data and
+    // the client dropped those rows (hotfixed mounts vanished from the journal, spell icons were lost)
+    hotfixRecord.HotfixStatus = HotfixRecord::Status::Valid;
     hotfixRecord.AvailableLocalesMask = 0xDFF;
 
     HotfixPush& push = _hotfixData[hotfixRecord.ID.PushID];
