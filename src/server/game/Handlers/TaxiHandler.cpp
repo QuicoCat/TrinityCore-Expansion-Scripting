@@ -16,6 +16,7 @@
  */
 
 #include "WorldSession.h"
+#include "CollectionMgr.h"
 #include "Common.h"
 #include "ConditionMgr.h"
 #include "Containers.h"
@@ -196,6 +197,10 @@ void WorldSession::HandleActivateTaxiOpcode(WorldPackets::Taxi::ActivateTaxi& ac
                 {
                     return ConditionMgr::IsPlayerMeetingCondition(GetPlayer(), mountDisplay->PlayerConditionID);
                 });
+
+                // Custom: unrestricted collected mounts - mounts made for another class, race or faction
+                if (usableDisplays.empty())
+                    usableDisplays = CollectionMgr::GetUnrestrictedMountDisplays(GetPlayer(), *mountDisplays);
 
                 if (!usableDisplays.empty())
                     preferredMountDisplay = Trinity::Containers::SelectRandomContainerElement(usableDisplays)->CreatureDisplayInfoID;

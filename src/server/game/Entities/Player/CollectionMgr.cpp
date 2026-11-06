@@ -17,6 +17,7 @@
 
 #include "CollectionMgr.h"
 #include "CollectionPackets.h"
+#include "ConditionMgr.h"
 #include "DatabaseEnv.h"
 #include "DB2HotfixGenerator.h"
 #include "DB2Stores.h"
@@ -26,66 +27,126 @@
 #include "MiscPackets.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "SharedDefines.h"
 #include "Timer.h"
 #include "TransmogMgr.h"
 #include "TransmogrificationPackets.h"
 #include "WorldSession.h"
 #include <boost/dynamic_bitset.hpp>
 #include <unordered_set>
+#include <vector>
 
 namespace
 {
     MountDefinitionMap FactionSpecificMounts;
     std::vector<uint32> DefaultWarbandScenes;
+
+    // Custom: unrestricted collected mounts.
+    // Every collected mount can be summoned by any character: class, race, faction, profession,
+    // covenant, quest and renown requirements are all ignored (where a mount can be used, like
+    // flying rules or area-only mounts, is unchanged). The mount journal decides on the client
+    // whether a mount is shown and usable, so the requirements are removed from the client's copy
+    // of the mount data with hotfixes. Shared PlayerCondition rows are never modified, because
+    // other content (quests, phasing, vendors...) uses the same conditions.
+
+    // 1 = Horde, 2 = Alliance
+    bool RestrictsClassRaceOrFaction(PlayerConditionEntry const* condition)
+    {
+        return condition && (condition->ClassMask || !condition->RaceMask.IsEmpty()
+            || condition->CurrentPvpFaction == 1 || condition->CurrentPvpFaction == 2);
+    }
+
+    constexpr int32 FactionSpecificSpellAttributes = SPELL_ATTR7_HORDE_SPECIFIC_SPELL | SPELL_ATTR7_ALLIANCE_SPECIFIC_SPELL;
+
+    void PublishUnrestrictedMountHotfixes()
+    {
+        std::unordered_set<uint32> mountSpells;
+        std::vector<uint32> mountIds;
+        for (MountEntry const* mount : sMountStore)
+        {
+            if (mount->SourceSpellID > 0)
+                mountSpells.insert(uint32(mount->SourceSpellID));
+
+            if (mount->GetFlags().HasFlag(MountFlags::ExcludeFromJournalIfFactionDoesntMatch) || mount->PlayerConditionID)
+                mountIds.push_back(mount->ID);
+        }
+
+        // Mount: ExcludeFromJournalIfFactionDoesntMatch hides the other faction's mounts from the
+        // journal, and PlayerConditionID holds every other requirement the journal checks (class
+        // and allied race mounts, professions, covenants, quests, renown...). Detaching the
+        // condition also lets the server teach the mount spell to every character (AddMount).
+        DB2HotfixGenerator<MountEntry> mountHotfixes(sMountStore);
+        mountHotfixes.ApplyHotfix(mountIds, [](MountEntry* mount)
+        {
+            mount->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
+            mount->PlayerConditionID = 0;
+        }, true);
+
+        // SpellMisc: the Horde/Alliance specific spell attributes are what the client uses as a
+        // mount's faction. They are cleared together with the journal flag above so the client
+        // treats these mounts exactly like neutral ones (clearing only one of the two was tried
+        // before and left the journal hiding mounts or broken).
+        std::vector<uint32> spellMiscIds;
+        for (SpellMiscEntry const* spellMisc : sSpellMiscStore)
+            if ((spellMisc->Attributes[7] & FactionSpecificSpellAttributes) && mountSpells.contains(spellMisc->SpellID))
+                spellMiscIds.push_back(spellMisc->ID);
+
+        DB2HotfixGenerator<SpellMiscEntry> spellMiscHotfixes(sSpellMiscStore);
+        spellMiscHotfixes.ApplyHotfix(spellMiscIds, [](SpellMiscEntry* spellMisc)
+        {
+            spellMisc->Attributes[7] &= ~FactionSpecificSpellAttributes;
+        }, true);
+
+        // SkillLineAbility: race and class masks of the mount abilities (racial mounts such as the
+        // Elusive Emerald Hawkstrider are only restricted here). Only abilities that are never
+        // learned automatically are changed, so no character learns extra spells because of this.
+        std::vector<uint32> skillLineAbilityIds;
+        for (SkillLineAbilityEntry const* ability : sSkillLineAbilityStore)
+            if ((ability->ClassMask || !ability->RaceMask.IsEmpty()) && ability->Spell > 0
+                && ability->GetAcquireMethod() == SkillLineAbilityAcquireMethod::Learned && mountSpells.contains(uint32(ability->Spell)))
+                skillLineAbilityIds.push_back(ability->ID);
+
+        DB2HotfixGenerator<SkillLineAbilityEntry> skillLineAbilityHotfixes(sSkillLineAbilityStore);
+        skillLineAbilityHotfixes.ApplyHotfix(skillLineAbilityIds, [](SkillLineAbilityEntry* ability)
+        {
+            ability->ClassMask = 0;
+            ability->RaceMask = {};
+        }, true);
+
+        TC_LOG_INFO("server.loading", ">> Unrestricted collected mounts: published {} Mount, {} SpellMisc and {} SkillLineAbility hotfixes",
+            mountHotfixes.GetAppliedHotfixesCount(), spellMiscHotfixes.GetAppliedHotfixesCount(), skillLineAbilityHotfixes.GetAppliedHotfixesCount());
+    }
+}
+
+std::vector<MountXDisplayEntry const*> CollectionMgr::GetUnrestrictedMountDisplays(Player const* player, std::vector<MountXDisplayEntry const*> const& mountDisplays)
+{
+    std::vector<MountXDisplayEntry const*> displays;
+    if (!player)
+        return displays;
+
+    bool hasClassRaceOrFactionDisplay = false;
+    for (MountXDisplayEntry const* mountDisplay : mountDisplays)
+    {
+        if (RestrictsClassRaceOrFaction(sPlayerConditionStore.LookupEntry(mountDisplay->PlayerConditionID)))
+            hasClassRaceOrFactionDisplay = true;
+
+        if (ConditionMgr::IsPlayerMeetingMountCondition(player, mountDisplay->PlayerConditionID))
+            displays.push_back(mountDisplay);
+    }
+
+    // e.g. class hall mounts pick their display by class and specialization: use any of them
+    // instead of falling back to the placeholder creature of the mount spell
+    if (displays.empty() && hasClassRaceOrFactionDisplay)
+        displays = mountDisplays;
+
+    return displays;
 }
 
 void CollectionMgr::LoadMountDefinitions()
 {
     uint32 oldMSTime = getMSTime();
 
-    // Mount journal usability is evaluated by the client from PlayerCondition.
-    // Publish relaxed mount conditions so collected mounts are usable across
-    // classes, races and factions, without changing riding or area requirements.
-    std::unordered_set<uint32> mountConditionIds;
-    for (MountEntry const* mount : sMountStore)
-        if (mount->PlayerConditionID)
-            mountConditionIds.insert(mount->PlayerConditionID);
-
-    for (MountCapabilityEntry const* capability : sMountCapabilityStore)
-        if (capability->PlayerConditionID)
-            mountConditionIds.insert(capability->PlayerConditionID);
-
-    DB2HotfixGenerator<PlayerConditionEntry> mountConditionHotfixes(sPlayerConditionStore);
-    for (uint32 conditionId : mountConditionIds)
-    {
-        PlayerConditionEntry const* condition = sPlayerConditionStore.LookupEntry(conditionId);
-        if (!condition || condition->GetFlags().HasFlag(PlayerConditionFlags::Invert))
-            continue;
-
-        if (!condition->ClassMask && condition->RaceMask.IsEmpty()
-            && condition->CurrentPvpFaction != 1 && condition->CurrentPvpFaction != 2)
-            continue;
-
-        mountConditionHotfixes.ApplyHotfix(conditionId, [](PlayerConditionEntry* entry)
-        {
-            entry->ClassMask = 0;
-            entry->RaceMask = {};
-            if (entry->CurrentPvpFaction == 1 || entry->CurrentPvpFaction == 2)
-                entry->CurrentPvpFaction = 0;
-        }, true);
-    }
-
-    TC_LOG_INFO("server.loading", ">> Published {} unrestricted mount condition hotfixes",
-        mountConditionHotfixes.GetAppliedHotfixesCount());
-
-    // Verified on mount 1267: this client flag also blocks summoning.
-    DB2HotfixGenerator<MountEntry> factionFlagTestHotfix(sMountStore);
-    factionFlagTestHotfix.ApplyHotfix(1267, [](MountEntry* mount)
-    {
-        mount->Flags &= ~static_cast<int32>(MountFlags::ExcludeFromJournalIfFactionDoesntMatch);
-    }, true);
-    TC_LOG_INFO("server.loading", ">> Published {} test Mount.Flags hotfix for mount 1267",
-        factionFlagTestHotfix.GetAppliedHotfixesCount());
+    PublishUnrestrictedMountHotfixes();
 
     QueryResult result = WorldDatabase.Query("SELECT spellId, otherFactionSpellId FROM mount_definitions");
 

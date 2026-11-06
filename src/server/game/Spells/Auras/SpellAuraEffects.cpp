@@ -22,6 +22,7 @@
 #include "BattlegroundPackets.h"
 #include "CellImpl.h"
 #include "CharmInfo.h"
+#include "CollectionMgr.h"
 #include "Common.h"
 #include "Containers.h"
 #include "DB2Stores.h"
@@ -2792,6 +2793,10 @@ void AuraEffect::HandleAuraMounted(AuraApplication const* aurApp, uint8 mode, bo
 
                             return true;
                         });
+
+                        // Custom: unrestricted collected mounts - mounts made for another class, race or faction
+                        if (usableDisplays.empty())
+                            usableDisplays = CollectionMgr::GetUnrestrictedMountDisplays(target->ToPlayer(), *mountDisplays);
 
                         if (!usableDisplays.empty())
                             displayId = Trinity::Containers::SelectRandomContainerElement(usableDisplays)->CreatureDisplayInfoID;

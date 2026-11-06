@@ -27,10 +27,13 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 class Item;
+class Player;
 class WorldSession;
 struct ItemModifiedAppearanceEntry;
+struct MountXDisplayEntry;
 
 enum class CollectionItemState : uint8
 {
@@ -117,6 +120,9 @@ public:
 
     static void LoadMountDefinitions();
     static void LoadWarbandSceneDefinitions();
+
+    // Custom: displays to use when none of a mount's displays are meant for this character's class, race or faction
+    static std::vector<MountXDisplayEntry const*> GetUnrestrictedMountDisplays(Player const* player, std::vector<MountXDisplayEntry const*> const& mountDisplays);
 
     void LoadCharacterData();
     void SaveToDB(LoginDatabaseTransaction trans);
